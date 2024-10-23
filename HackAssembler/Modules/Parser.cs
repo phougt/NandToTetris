@@ -318,6 +318,7 @@ namespace HackAssembler.Modules
             if (_currentCommand == string.Empty)
             {
                 Type = Enums.CommandType.NONE;
+                IsValidCommand = true;
                 _lineNumber++;
                 return;
             }

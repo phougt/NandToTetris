@@ -84,7 +84,7 @@ namespace HackAssembler
             {
                 s_parser.Advance();
 
-                if (s_parser.Type != CommandType.NONE && !s_parser.IsValidCommand)
+                if (!s_parser.IsValidCommand)
                 {
                     s_canGenerateBinary = false;
                 }
