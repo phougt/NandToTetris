@@ -25,29 +25,13 @@ namespace HackAssembler.Modules
                     return "010";
                 case "MD":
                     return "011";
-                case "DM":
-                    return "011";
                 case "A":
                     return "100";
                 case "AM":
                     return "101";
-                case "MA":
-                    return "101";
                 case "AD":
                     return "110";
-                case "DA":
-                    return "110";
                 case "AMD":
-                    return "111";
-                case "ADM":
-                    return "111";
-                case "MAD":
-                    return "111";
-                case "MDA":
-                    return "111";
-                case "DAM":
-                    return "111";
-                case "DMA":
                     return "111";
                 default:
                     return string.Empty;
@@ -98,11 +82,7 @@ namespace HackAssembler.Modules
                     return "0000111";
                 case "D&A":
                     return "0000000";
-                case "A&D":
-                    return "0000000";
                 case "D|A":
-                    return "0010101";
-                case "A|D":
                     return "0010101";
                 case "M":
                     return "1110000";
@@ -126,11 +106,7 @@ namespace HackAssembler.Modules
                     return "1000111";
                 case "D&M":
                     return "1000000";
-                case "M&D":
-                    return "1000000";
                 case "D|M":
-                    return "1010101";
-                case "M|D":
                     return "1010101";
                 default:
                     return string.Empty;

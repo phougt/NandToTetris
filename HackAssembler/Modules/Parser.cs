@@ -34,18 +34,10 @@ namespace HackAssembler.Modules
                 "M",
                 "D",
                 "MD",
-                "DM",
                 "A",
                 "AM",
-                "MA",
                 "AD",
-                "DA",
                 "AMD",
-                "ADM",
-                "MAD",
-                "MDA",
-                "DMA",
-                "DAM"
             };
 
             _validJump = new HashSet<string>()
@@ -82,9 +74,7 @@ namespace HackAssembler.Modules
                 "D-A",
                 "A-D",
                 "D&A",
-                "A&D",
                 "D|A",
-                "A|D",
                 "M",
                 "!M",
                 "-M",
@@ -96,9 +86,7 @@ namespace HackAssembler.Modules
                 "D-M",
                 "M-D",
                 "D&M",
-                "M&D",
                 "D|M",
-                "M|D"
             };
 
         }
