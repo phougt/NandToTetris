@@ -1,5 +1,7 @@
 ﻿using HackAssembler.Enums;
 using HackAssembler.Modules;
+using System.Diagnostics;
+using System.Text;
 
 namespace HackAssembler
 {
@@ -9,7 +11,7 @@ namespace HackAssembler
         private static Parser s_parser;
         private static int s_programCounter = 0;
         private static int s_availableRamAddress = 16;
-        private static List<string> s_binaryOutput;
+        private static StringBuilder s_binaryOutput;
         private static bool s_canGenerateBinary = true;
 
         private static void InitializeData()
@@ -42,7 +44,7 @@ namespace HackAssembler
             };
 
             s_symbolTable = new SymbolTable(builtInKeyword);
-            s_binaryOutput = new List<string>();
+            s_binaryOutput = new StringBuilder();
         }
 
         public static void Main(string[] args)
@@ -141,19 +143,19 @@ namespace HackAssembler
                         if (s_symbolTable.Contains(symbol))
                         {
                             int address = s_symbolTable.GetAddress(symbol);
-                            s_binaryOutput.Add(Code.Address(address));
+                            s_binaryOutput.AppendLine(Code.Address(address));
                         }
                         else
                         {
                             s_symbolTable.AddEntry(symbol, s_availableRamAddress);
-                            s_binaryOutput.Add(Code.Address(s_availableRamAddress));
+                            s_binaryOutput.AppendLine(Code.Address(s_availableRamAddress));
                             s_availableRamAddress++;
                         }
                     }
                     else
                     {
                         int address = Convert.ToInt32(symbol);
-                        s_binaryOutput.Add(Code.Address(address));
+                        s_binaryOutput.AppendLine(Code.Address(address));
                     }
                 }
 
@@ -165,7 +167,7 @@ namespace HackAssembler
 
                     string[] parts = ["111", comp, dest, jump];
                     string final = string.Concat(parts);
-                    s_binaryOutput.Add(final);
+                    s_binaryOutput.AppendLine(final);
                 }
             }
 
@@ -183,10 +185,7 @@ namespace HackAssembler
 
                 using (StreamWriter streamWriter = new StreamWriter(outputPath))
                 {
-                    foreach (string output in s_binaryOutput)
-                    {
-                        streamWriter.WriteLine(output);
-                    }
+                        streamWriter.Write(s_binaryOutput);
                 }
             }
         }
