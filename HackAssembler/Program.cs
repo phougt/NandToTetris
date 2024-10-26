@@ -7,7 +7,7 @@ namespace HackAssembler
 {
     public class Program
     {
-        private static SymbolTable s_symbolTable;
+        private static Dictionary<string, int> s_symbolTable;
         private static Parser s_parser;
         private static int s_programCounter = 0;
         private static int s_availableRamAddress = 16;
@@ -16,7 +16,7 @@ namespace HackAssembler
 
         private static void InitializeData()
         {
-            Dictionary<string, int> builtInKeyword = new Dictionary<string, int>()
+            s_symbolTable = new Dictionary<string, int>()
             {
                 {"SP", 0},
                 {"LCL", 1},
@@ -43,7 +43,6 @@ namespace HackAssembler
                 {"KBD", 24576},
             };
 
-            s_symbolTable = new SymbolTable(builtInKeyword);
             s_binaryOutput = new StringBuilder();
         }
 
@@ -97,13 +96,13 @@ namespace HackAssembler
                 {
                     string symbol = s_parser.Symbol;
 
-                    if (!s_symbolTable.Contains(symbol))
+                    if (!s_symbolTable.ContainsKey(symbol))
                     {
-                        s_symbolTable.AddEntry(symbol, s_programCounter);
+                        s_symbolTable.Add(symbol, s_programCounter);
                     }
                     else
                     {
-                        Console.Error.WriteLine($"'{symbol}' Label can only be declared once. Line: {s_symbolTable.GetAddress(symbol)} and {s_programCounter}");
+                        Console.Error.WriteLine($"'{symbol}' Label can only be declared once. Line: {s_symbolTable.GetValueOrDefault(symbol)} and {s_programCounter}");
                         s_canGenerateBinary = false;
                     }
                 }
@@ -140,14 +139,14 @@ namespace HackAssembler
 
                     if (!isNumber)
                     {
-                        if (s_symbolTable.Contains(symbol))
+                        if (s_symbolTable.ContainsKey(symbol))
                         {
-                            int address = s_symbolTable.GetAddress(symbol);
+                            int address = s_symbolTable.GetValueOrDefault(symbol);
                             s_binaryOutput.AppendLine(Code.Address(address));
                         }
                         else
                         {
-                            s_symbolTable.AddEntry(symbol, s_availableRamAddress);
+                            s_symbolTable.Add(symbol, s_availableRamAddress);
                             s_binaryOutput.AppendLine(Code.Address(s_availableRamAddress));
                             s_availableRamAddress++;
                         }
@@ -185,7 +184,7 @@ namespace HackAssembler
 
                 using (StreamWriter streamWriter = new StreamWriter(outputPath))
                 {
-                        streamWriter.Write(s_binaryOutput);
+                    streamWriter.Write(s_binaryOutput);
                 }
             }
         }
