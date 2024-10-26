@@ -135,29 +135,14 @@ namespace VMTranslatorBasic
 
                 if (currentCommandType == CommandType.C_PUSH)
                 {
-                    if (Code.PushPop(CommandType.C_PUSH, segment, index) == string.Empty)
-                    {
-                        Console.WriteLine($"segment C_POP: {segment}, {index} ");
-                    }
-
                     s_ASMOutput.AppendLine(Code.PushPop(CommandType.C_PUSH, segment, index));
                 }
                 else if (currentCommandType == CommandType.C_POP)
                 {
-                    if (Code.PushPop(CommandType.C_POP, segment, index) == string.Empty)
-                    {
-                        Console.WriteLine($"segment C_POP: {segment}, {index} ");
-                    }
-
                     s_ASMOutput.AppendLine(Code.PushPop(CommandType.C_POP, segment, index));
                 }
                 else if (currentCommandType == CommandType.C_ARITHMETIC)
                 {
-                    if (Code.Arithmethic(segment) == string.Empty)
-                    {
-                        Console.WriteLine($"segment arithmetic: {segment} ");
-                    }
-
                     s_ASMOutput.AppendLine(Code.Arithmethic(segment));
                 }
             }
