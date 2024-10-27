@@ -144,7 +144,11 @@ namespace VMTranslatorBasic
                 Translate(firstArg);
             }
 
-            if (s_canGenerateASM)
+            if (!s_canGenerateASM)
+            {
+                Environment.Exit(1);
+            }
+            else
             {
                 if (isMultiFilesTranslating)
                 {
@@ -164,10 +168,6 @@ namespace VMTranslatorBasic
                 {
                     writer.Write(s_ASMOutput);
                 }
-            }
-            else
-            {
-                Environment.Exit(1);
             }
         }
 
