@@ -2,6 +2,8 @@
 using VMTranslatorBasic.Modules;
 using VMTranslatorBasic.Enums;
 using System.Text;
+using System.Reflection.Metadata.Ecma335;
+using System.Net.Http.Headers;
 
 namespace VMTranslatorBasic
 {
@@ -87,33 +89,98 @@ namespace VMTranslatorBasic
         {
             InitializeData();
 
-            string sourcePath = string.Empty;
-            string outputPath = string.Empty;
+            string firstArg = string.Empty;
+            string secondArg = string.Empty;
 
-            if (args.Length == 2)
+            bool isMultiFilesTranslating = false;
+
+            if (args.Length == 1)
             {
-                sourcePath = args[0];
-                outputPath = args[1];
+                isMultiFilesTranslating = args[0].Equals("-dir");
+                firstArg = args[0];
+            }
+            else if (args.Length == 2)
+            {
+                firstArg = args[0];
+                secondArg = args[1];
             }
             else
             {
-                Console.Error.WriteLine("Expected 2 arguments (SourcePath, OutputPath).");
+                Console.Error.WriteLine("Arguments Format is expected to be (SourcePath, OutputPath) or (-dir).");
                 Environment.Exit(1);
             }
 
-            if (!(Path.GetExtension(sourcePath) == ".vm"))
+            if (isMultiFilesTranslating)
             {
-                Console.Error.WriteLine("Souce file must end with .vm extension");
-                Environment.Exit(1);
+                string[] files = Directory.GetFiles(Environment.CurrentDirectory);
+
+                if (files.Length == 0)
+                {
+                    Console.Error.WriteLine("Empty Directory.");
+                    Environment.Exit(1);
+                }
+
+                string[] vmFiles = files.Where(filename => Path.GetExtension(filename).Equals(".vm")).ToArray();
+
+                if (vmFiles.Length == 0)
+                {
+                    Console.Error.WriteLine("No .vm files are found in the specified directory.");
+                    Environment.Exit(1);
+                }
+
+                foreach (string file in vmFiles)
+                {
+                    Translate(file);
+                }
+            }
+            else
+            {
+                if (!Path.GetExtension(firstArg).Equals(".vm"))
+                {
+                    Console.Error.WriteLine("SourcePath is not a .vm file.");
+                    Environment.Exit(1);
+                }
+
+                Translate(firstArg);
             }
 
+            if (s_canGenerateASM)
+            {
+                if (isMultiFilesTranslating)
+                {
+                    string currentDirectory = Environment.CurrentDirectory;
+                    string currentDirectoryName = new DirectoryInfo(currentDirectory).Name;
+
+                    secondArg = $"{currentDirectory}{Path.DirectorySeparatorChar}{currentDirectoryName}.asm";
+                }
+
+                // Remove the extension from the outputPath
+                secondArg = Path.ChangeExtension(secondArg, null);
+
+                // Add a new extension .asm
+                secondArg = Path.ChangeExtension(secondArg, ".asm");
+
+                using (StreamWriter writer = new StreamWriter(secondArg))
+                {
+                    writer.Write(s_ASMOutput);
+                }
+            }
+            else
+            {
+                Environment.Exit(1);
+            }
+        }
+
+        public static void Translate(string sourcePath)
+        {
             try
             {
                 s_parser = new Parser(sourcePath);
             }
-            catch (FileNotFoundException)
+            catch (Exception ex)
             {
-                Console.Error.WriteLine("Source File is not found");
+                Console.Error.WriteLine(ex.Message);
+                Environment.Exit(1);
             }
 
             while (s_parser.HasMoreLines)
@@ -145,24 +212,6 @@ namespace VMTranslatorBasic
                 {
                     s_ASMOutput.AppendLine(Code.Arithmethic(segment));
                 }
-            }
-
-            if (s_canGenerateASM)
-            {
-                // Remove the extension from the outputPath
-                outputPath = Path.ChangeExtension(outputPath, null);
-
-                // Add a new extension .asm
-                outputPath = Path.ChangeExtension(outputPath, ".asm");
-
-                using (StreamWriter writer = new StreamWriter(outputPath))
-                {
-                    writer.Write(s_ASMOutput);
-                }
-            }
-            else
-            {
-                Environment.Exit(1);
             }
         }
     }

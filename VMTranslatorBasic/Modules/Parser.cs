@@ -103,6 +103,10 @@ namespace VMTranslatorBasic.Modules
                 _lineNumber++;
                 return;
             }
+
+            IsValidCommand = false;
+            Type = CommandType.NONE;
+            Console.Error.WriteLine($"{_currentCommand.Split()[0]}Command does not exist. Line: {_lineNumber}");
         }
 
         private void RemoveComment()
