@@ -18,11 +18,13 @@ namespace VMTranslatorBasic
         {
             s_ASMOutput = new StringBuilder();
 
+            //Jump to the beginning of the actual program when started
             s_ASMOutput.AppendLine("""
                                    @START_PROGRAM
                                    0;JMP
                                    """);
-
+            
+            //Handling "eq" VM instruction
             s_ASMOutput.AppendLine("""
                                    (START_EQ)
                                    @SP
@@ -42,6 +44,7 @@ namespace VMTranslatorBasic
                                    0;JMP
                                    """);
 
+            //Handling "lt" VM instruction
             s_ASMOutput.AppendLine("""
                                    (START_LT)
                                    @SP
@@ -61,6 +64,7 @@ namespace VMTranslatorBasic
                                    0;JMP
                                    """);
 
+            //Handling "gt" VM instruction
             s_ASMOutput.AppendLine("""
                                    (START_GT)
                                    @SP
@@ -80,6 +84,7 @@ namespace VMTranslatorBasic
                                    0;JMP
                                    """);
 
+            //Mark the start of the actual program
             s_ASMOutput.AppendLine("""
                                    (START_PROGRAM)
                                    """);
