@@ -213,6 +213,8 @@ namespace VMTranslatorBasic
                     s_ASMOutput.AppendLine(Code.Arithmethic(segment));
                 }
             }
+
+            s_parser?.Dispose();
         }
     }
 }
