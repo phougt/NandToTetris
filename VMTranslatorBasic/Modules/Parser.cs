@@ -11,7 +11,7 @@ namespace VMTranslatorBasic.Modules
         public int Arg2 { get; private set; } = 0;
 
         private StreamReader _reader;
-        private Dictionary<string, CommandType> command;
+        private Dictionary<string, CommandType> _command;
         private HashSet<string> _segments;
         private string _currentCommand = string.Empty;
         private uint _lineNumber = 1;
@@ -20,7 +20,7 @@ namespace VMTranslatorBasic.Modules
         {
             _reader = new StreamReader(filename);
             HasMoreLines = !_reader.EndOfStream;
-            command = new Dictionary<string, CommandType>()
+            _command = new Dictionary<string, CommandType>()
             {
                 { "push", CommandType.C_PUSH },
                 { "pop", CommandType.C_POP},
