@@ -1,9 +1,6 @@
-﻿using System;
-using VMTranslatorBasic.Modules;
+﻿using VMTranslatorBasic.Modules;
 using VMTranslatorBasic.Enums;
 using System.Text;
-using System.Reflection.Metadata.Ecma335;
-using System.Net.Http.Headers;
 
 namespace VMTranslatorBasic
 {

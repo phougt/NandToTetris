@@ -106,7 +106,7 @@ namespace VMTranslatorBasic.Modules
 
             IsValidCommand = false;
             Type = CommandType.NONE;
-            Console.Error.WriteLine($"{_currentCommand.Split()[0]}Command does not exist. Line: {_lineNumber}");
+            Console.Error.WriteLine($"{_currentCommand.Split()[0]} command does not exist. Line: {_lineNumber}");
         }
 
         private void RemoveComment()
