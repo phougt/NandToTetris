@@ -4,7 +4,14 @@ namespace VMTranslatorBasic.Modules
 {
     public class Coder
     {
-        public string Filename { get; set; } = string.Empty;
+
+        public string Filename
+        {
+            get { return _filename.Trim().Replace(' ', '_'); }
+            set { _filename = value; }
+        }
+
+        private string _filename = string.Empty;
         private const int TEMP = 5;
         private const int STATIC = 16;
         private int _eqCount = 0;
@@ -215,10 +222,7 @@ namespace VMTranslatorBasic.Modules
                 else if (segment.Equals("static", StringComparison.OrdinalIgnoreCase))
                 {
                     assemblyInstructions = $"""
-                                            @{index}
-                                            D=A
-                                            @{STATIC}
-                                            A=M+D
+                                            @{Filename}.{index}
                                             D=M
                                             @SP
                                             A=M
@@ -340,17 +344,10 @@ namespace VMTranslatorBasic.Modules
                 else if (segment.Equals("static", StringComparison.OrdinalIgnoreCase))
                 {
                     assemblyInstructions = $"""
-                                            @{index}
-                                            D=A
-                                            @{STATIC}
-                                            D=M+D
-                                            @R13
-                                            M=D
                                             @SP
                                             AM=M-1
                                             D=M
-                                            @R13
-                                            A=M
+                                            @{Filename}.{index}
                                             M=D
                                             """;
                     return assemblyInstructions;
