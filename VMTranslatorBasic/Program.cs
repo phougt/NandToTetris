@@ -6,7 +6,6 @@ namespace VMTranslatorBasic
 {
     public class Program
     {
-        private static Parser s_parser;
         private static bool s_canGenerateASM = true;
         private static StringBuilder s_ASMOutput;
 
@@ -189,12 +188,13 @@ namespace VMTranslatorBasic
 
         public static StringBuilder? Translate(string sourcePath, Coder coder)
         {
+            Parser parser = null;
             StringBuilder tempASMoutput = new StringBuilder();
             bool canGenerateASM = true;
 
             try
             {
-                s_parser = new Parser(sourcePath);
+                parser = new Parser(sourcePath);
             }
             catch (Exception ex)
             {
@@ -202,22 +202,22 @@ namespace VMTranslatorBasic
                 Environment.Exit(1);
             }
 
-            while (s_parser.HasMoreLines)
+            while (parser.HasMoreLines)
             {
-                s_parser.Advance();
+                parser.Advance();
 
-                if (!s_parser.IsValidCommand)
+                if (!parser.IsValidCommand)
                 {
                     canGenerateASM = false;
                 }
 
-                CommandType currentCommandType = s_parser.Type;
+                CommandType currentCommandType = parser.Type;
 
                 if (currentCommandType == CommandType.NONE)
                     continue;
 
-                string segment = s_parser.Arg1;
-                int index = s_parser.Arg2;
+                string segment = parser.Arg1;
+                int index = parser.Arg2;
 
                 if (currentCommandType == CommandType.C_PUSH)
                 {
@@ -233,7 +233,7 @@ namespace VMTranslatorBasic
                 }
             }
 
-            s_parser?.Dispose();
+            parser?.Dispose();
 
             return (canGenerateASM) ? tempASMoutput : null;
         }
