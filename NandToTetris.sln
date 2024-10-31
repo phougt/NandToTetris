@@ -5,7 +5,7 @@ VisualStudioVersion = 17.11.35312.102
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HackAssembler", "HackAssembler\HackAssembler.csproj", "{B7D3D8A7-07AA-4F7C-B8B9-9BD337270802}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VMTranslatorBasic", "VMTranslatorBasic\VMTranslatorBasic.csproj", "{021A0DF9-D0D0-4A77-8D66-066DFF2C4CB3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VMTranslator", "VMTranslatorBasic\VMTranslator.csproj", "{021A0DF9-D0D0-4A77-8D66-066DFF2C4CB3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

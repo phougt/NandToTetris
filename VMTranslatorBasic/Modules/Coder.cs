@@ -1,6 +1,6 @@
-﻿using VMTranslatorBasic.Enums;
+﻿using VMTranslator.Enums;
 
-namespace VMTranslatorBasic.Modules
+namespace VMTranslator.Modules
 {
     public class Coder
     {

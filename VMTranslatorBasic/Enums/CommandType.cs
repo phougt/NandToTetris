@@ -1,4 +1,4 @@
-﻿namespace VMTranslatorBasic.Enums
+﻿namespace VMTranslator.Enums
 {
     public enum CommandType
     {

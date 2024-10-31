@@ -1,8 +1,8 @@
-﻿using VMTranslatorBasic.Modules;
-using VMTranslatorBasic.Enums;
+﻿using VMTranslator.Modules;
+using VMTranslator.Enums;
 using System.Text;
 
-namespace VMTranslatorBasic
+namespace VMTranslator
 {
     public class Program
     {
