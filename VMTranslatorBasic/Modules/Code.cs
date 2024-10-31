@@ -2,15 +2,16 @@
 
 namespace VMTranslatorBasic.Modules
 {
-    public static class Code
+    public class Coder
     {
+        public string Filename { get; set; } = string.Empty;
         private const int TEMP = 5;
         private const int STATIC = 16;
-        private static int _eqCount = 0;
-        private static int _ltCount = 0;
-        private static int _gtCount = 0;
+        private int _eqCount = 0;
+        private int _ltCount = 0;
+        private int _gtCount = 0;
 
-        public static string Arithmethic(string command)
+        public string Arithmethic(string command)
         {
             string assemblyInstructions = string.Empty;
 
@@ -128,7 +129,7 @@ namespace VMTranslatorBasic.Modules
             return string.Empty;
         }
 
-        public static string PushPop(CommandType commandType, string segment, int index)
+        public string PushPop(CommandType commandType, string segment, int index)
         {
             string assemblyInstructions = string.Empty;
 

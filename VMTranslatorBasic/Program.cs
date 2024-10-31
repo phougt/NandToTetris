@@ -20,7 +20,7 @@ namespace VMTranslatorBasic
                                    @START_PROGRAM
                                    0;JMP
                                    """);
-            
+
             //Handling "eq" VM instruction
             s_ASMOutput.AppendLine("""
                                    (START_EQ)
@@ -130,9 +130,17 @@ namespace VMTranslatorBasic
                     Environment.Exit(1);
                 }
 
+                Coder coder = new Coder();
+
                 foreach (string file in vmFiles)
                 {
-                    Translate(file);
+                    coder.Filename = Path.GetFileNameWithoutExtension(file);
+                    StringBuilder? temp = Translate(file, coder);
+
+                    if (temp != null)
+                        s_ASMOutput.Append(temp);
+                    else
+                        s_canGenerateASM = false;
                 }
             }
             else
@@ -143,7 +151,14 @@ namespace VMTranslatorBasic
                     Environment.Exit(1);
                 }
 
-                Translate(firstArg);
+                Coder coder = new Coder();
+                coder.Filename = Path.GetFileNameWithoutExtension(firstArg);
+                StringBuilder? temp = Translate(firstArg, coder);
+
+                if (temp != null)
+                    s_ASMOutput.Append(temp);
+                else
+                    s_canGenerateASM = false;
             }
 
             if (!s_canGenerateASM)
@@ -173,8 +188,11 @@ namespace VMTranslatorBasic
             }
         }
 
-        public static void Translate(string sourcePath)
+        public static StringBuilder? Translate(string sourcePath, Coder coder)
         {
+            StringBuilder tempASMoutput = new StringBuilder();
+            bool canGenerateASM = true;
+
             try
             {
                 s_parser = new Parser(sourcePath);
@@ -191,7 +209,7 @@ namespace VMTranslatorBasic
 
                 if (!s_parser.IsValidCommand)
                 {
-                    s_canGenerateASM = false;
+                    canGenerateASM = false;
                 }
 
                 CommandType currentCommandType = s_parser.Type;
@@ -204,19 +222,21 @@ namespace VMTranslatorBasic
 
                 if (currentCommandType == CommandType.C_PUSH)
                 {
-                    s_ASMOutput.AppendLine(Code.PushPop(CommandType.C_PUSH, segment, index));
+                    tempASMoutput.AppendLine(coder.PushPop(CommandType.C_PUSH, segment, index));
                 }
                 else if (currentCommandType == CommandType.C_POP)
                 {
-                    s_ASMOutput.AppendLine(Code.PushPop(CommandType.C_POP, segment, index));
+                    tempASMoutput.AppendLine(coder.PushPop(CommandType.C_POP, segment, index));
                 }
                 else if (currentCommandType == CommandType.C_ARITHMETIC)
                 {
-                    s_ASMOutput.AppendLine(Code.Arithmethic(segment));
+                    tempASMoutput.AppendLine(coder.Arithmethic(segment));
                 }
             }
 
             s_parser?.Dispose();
+
+            return (canGenerateASM) ? tempASMoutput : null;
         }
     }
 }
