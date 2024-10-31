@@ -8,7 +8,6 @@ namespace VMTranslatorBasic
     {
         private static Parser s_parser;
         private static bool s_canGenerateASM = true;
-        private static StreamWriter s_writer;
         private static StringBuilder s_ASMOutput;
 
         public static void InitializeData()
