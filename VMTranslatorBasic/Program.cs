@@ -188,7 +188,7 @@ namespace VMTranslatorBasic
 
         public static StringBuilder? Translate(string sourcePath, Coder coder)
         {
-            Parser parser = null;
+            Parser? parser = null;
             StringBuilder tempASMoutput = new StringBuilder();
             bool canGenerateASM = true;
 
