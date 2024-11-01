@@ -8,7 +8,7 @@ namespace VMTranslator.Modules
         public bool HasMoreLines { get; private set; } = false;
         public bool IsValidCommand { get; private set; } = false;
         public string Arg1 { get; private set; } = string.Empty;
-        public int Arg2 { get; private set; } = 0;
+        public int Arg2 { get; private set; } = -1;
 
         private StreamReader _reader;
         private Dictionary<string, CommandType> _command;
@@ -76,6 +76,10 @@ namespace VMTranslator.Modules
                     return;
                 }
 
+                string[] parts = _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                Arg1 = parts[1];
+                Arg2 = int.Parse(parts[2]);
+                IsValidCommand = true;
                 _lineNumber++;
                 return;
             }
@@ -91,6 +95,9 @@ namespace VMTranslator.Modules
                     return;
                 }
 
+                string[] parts = _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                Arg1 = parts[1];
+                Arg2 = int.Parse(parts[2]);
                 IsValidCommand = true;
                 _lineNumber++;
                 return;
@@ -100,6 +107,7 @@ namespace VMTranslator.Modules
             {
                 Type = CommandType.C_ARITHMETIC;
                 IsValidCommand = true;
+                Arg1 = _currentCommand;
                 _lineNumber++;
                 return;
             }
@@ -130,23 +138,19 @@ namespace VMTranslator.Modules
 
         private bool ValidatePushCommand()
         {
-            string[] parts = _currentCommand.Split(' ');
+            string[] parts = _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             bool hasThreeParts = parts.Length == 3;
 
             if (!hasThreeParts)
             {
-                Console.Error.WriteLine($"Expect 'COMMAND SEGMENT UINT' Format.  \nLine: {_lineNumber}");
-            }
-            else
-            {
-                Arg1 = parts[1];
+                Console.Error.WriteLine($"Expect 'PUSH SEGMENT UINT' Format.  \nLine: {_lineNumber}");
+                return false;
             }
 
-            bool isValidSegment = _segments.Contains(Arg1);
+            bool isValidSegment = _segments.Contains(parts[1]);
             bool isNumberArg2 = int.TryParse(parts[2], out int numberArg2);
-            Arg2 = numberArg2;
-            bool hasConstantSegment = string.Equals(Arg1, "constant", StringComparison.OrdinalIgnoreCase);
-            bool hasPointerSegment = string.Equals(Arg1, "pointer", StringComparison.OrdinalIgnoreCase);
+            bool hasConstantSegment = string.Equals(parts[1], "constant", StringComparison.OrdinalIgnoreCase);
+            bool hasPointerSegment = string.Equals(parts[1], "pointer", StringComparison.OrdinalIgnoreCase);
 
             if (!isNumberArg2)
                 Console.Error.WriteLine($"Expect Arg2 to be a positive number.  \nLine: {_lineNumber}");
@@ -178,23 +182,19 @@ namespace VMTranslator.Modules
 
         private bool ValidatePopCommand()
         {
-            string[] parts = _currentCommand.Split(' ');
+            string[] parts = _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             bool hasThreeParts = parts.Length == 3;
 
             if (!hasThreeParts)
             {
-                Console.Error.WriteLine($"Expect 'COMMAND SEGMENT UINT' Format.  \nLine: {_lineNumber}");
-            }
-            else
-            {
-                Arg1 = parts[1];
+                Console.Error.WriteLine($"Expect 'POP SEGMENT UINT' Format.  \nLine: {_lineNumber}");
+                return false;
             }
 
-            bool hasConstantSegment = string.Equals(Arg1, "constant", StringComparison.OrdinalIgnoreCase);
-            bool hasPointerSegment = string.Equals(Arg1, "pointer", StringComparison.OrdinalIgnoreCase);
-            bool isValidSegment = _segments.Contains(Arg1) && !hasConstantSegment;
+            bool hasConstantSegment = string.Equals(parts[1], "constant", StringComparison.OrdinalIgnoreCase);
+            bool hasPointerSegment = string.Equals(parts[1], "pointer", StringComparison.OrdinalIgnoreCase);
+            bool isValidSegment = _segments.Contains(parts[1]) && !hasConstantSegment;
             bool isNumberArg2 = int.TryParse(parts[2], out int numberArg2);
-            Arg2 = numberArg2; 
 
             if (!isNumberArg2)
                 Console.Error.WriteLine($"Expect Arg2 to be a positive number.  \nLine: {_lineNumber}");
@@ -214,17 +214,15 @@ namespace VMTranslator.Modules
 
         private bool IsArithmeticCommand()
         {
-            Arg1 = _currentCommand;
-
-            return Arg1.Equals("add", StringComparison.OrdinalIgnoreCase)
-                || Arg1.Equals("neg", StringComparison.OrdinalIgnoreCase)
-                || Arg1.Equals("sub", StringComparison.OrdinalIgnoreCase)
-                || Arg1.Equals("eq", StringComparison.OrdinalIgnoreCase)
-                || Arg1.Equals("gt", StringComparison.OrdinalIgnoreCase)
-                || Arg1.Equals("lt", StringComparison.OrdinalIgnoreCase)
-                || Arg1.Equals("and", StringComparison.OrdinalIgnoreCase)
-                || Arg1.Equals("or", StringComparison.OrdinalIgnoreCase)
-                || Arg1.Equals("not", StringComparison.OrdinalIgnoreCase);
+            return _currentCommand.Equals("add", StringComparison.OrdinalIgnoreCase)
+                || _currentCommand.Equals("neg", StringComparison.OrdinalIgnoreCase)
+                || _currentCommand.Equals("sub", StringComparison.OrdinalIgnoreCase)
+                || _currentCommand.Equals("eq", StringComparison.OrdinalIgnoreCase)
+                || _currentCommand.Equals("gt", StringComparison.OrdinalIgnoreCase)
+                || _currentCommand.Equals("lt", StringComparison.OrdinalIgnoreCase)
+                || _currentCommand.Equals("and", StringComparison.OrdinalIgnoreCase)
+                || _currentCommand.Equals("or", StringComparison.OrdinalIgnoreCase)
+                || _currentCommand.Equals("not", StringComparison.OrdinalIgnoreCase);
         }
 
         public void Dispose()
