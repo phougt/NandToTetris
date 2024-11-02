@@ -20,7 +20,7 @@ namespace VMTranslator.Modules
 
         public string Arithmethic(string command)
         {
-            switch (command.ToLower())
+            switch (command)
             {
                 case "neg":
                     return $"""
@@ -114,7 +114,7 @@ namespace VMTranslator.Modules
         {
             if (commandType == CommandType.C_PUSH)
             {
-                switch (segment.ToLower())
+                switch (segment)
                 {
                     case "constant":
                         return $"""
@@ -220,7 +220,7 @@ namespace VMTranslator.Modules
             }
             else
             {
-                switch (segment.ToLower())
+                switch (segment)
                 {
                     case "this":
                         return $"""
@@ -324,6 +324,41 @@ namespace VMTranslator.Modules
                         return string.Empty;
                 };
             }
+        }
+
+        public string WriteInit()
+        {
+            return string.Empty;
+        }
+
+        public string WriteLabel(string label)
+        {
+            return string.Empty;
+        }
+
+        public string WriteGoto(string label)
+        {
+            return string.Empty;
+        }
+
+        public string WriteIf(string label)
+        {
+            return string.Empty;
+        }
+
+        public string WriteCall(string functionName, string ArgsLength)
+        {
+            return string.Empty;
+        }
+
+        public string WriteReturn()
+        {
+            return string.Empty;
+        }
+
+        public string WriteFunction(string functionName, string LocalLength)
+        {
+            return string.Empty;
         }
     }
 }

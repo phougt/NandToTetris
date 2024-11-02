@@ -1,4 +1,5 @@
-﻿using VMTranslator.Enums;
+﻿using System.Collections.Immutable;
+using VMTranslator.Enums;
 
 namespace VMTranslator.Modules
 {
@@ -13,6 +14,7 @@ namespace VMTranslator.Modules
         private StreamReader _reader;
         private Dictionary<string, CommandType> _command;
         private HashSet<string> _segments;
+        private ImmutableArray<char> _allowedCharForName;
         private string _currentCommand = string.Empty;
         private uint _lineNumber = 1;
 
@@ -32,7 +34,13 @@ namespace VMTranslator.Modules
                 { "lt", CommandType.C_ARITHMETIC },
                 { "and", CommandType.C_ARITHMETIC },
                 { "or", CommandType.C_ARITHMETIC },
-                { "not", CommandType.C_ARITHMETIC }
+                { "not", CommandType.C_ARITHMETIC },
+                { "label", CommandType.C_LABEL },
+                { "goto", CommandType.C_GOTO },
+                { "if", CommandType.C_IF },
+                { "call", CommandType.C_CALL },
+                { "return", CommandType.C_RETURN },
+                { "function", CommandType.C_FUNCTION }
             };
 
             _segments = new HashSet<string>()
@@ -45,6 +53,13 @@ namespace VMTranslator.Modules
                 "that",
                 "pointer",
                 "temp"
+            };
+
+            _allowedCharForName = new ImmutableArray<char>()
+            {
+                '_',
+                '.',
+                ':',
             };
         }
 
@@ -133,7 +148,7 @@ namespace VMTranslator.Modules
 
         private bool IsPushCommand()
         {
-            return _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0].Equals("push", StringComparison.OrdinalIgnoreCase);
+            return _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0].Equals("push");
         }
 
         private bool ValidatePushCommand()
@@ -143,14 +158,14 @@ namespace VMTranslator.Modules
 
             if (!hasThreeParts)
             {
-                Console.Error.WriteLine($"Expect 'PUSH SEGMENT UINT' Format.  \nLine: {_lineNumber}");
+                Console.Error.WriteLine($"Expect 'push SEGMENT UINT' Format.  \nLine: {_lineNumber}");
                 return false;
             }
 
             bool isValidSegment = _segments.Contains(parts[1]);
             bool isNumberArg2 = int.TryParse(parts[2], out int numberArg2);
-            bool hasConstantSegment = string.Equals(parts[1], "constant", StringComparison.OrdinalIgnoreCase);
-            bool hasPointerSegment = string.Equals(parts[1], "pointer", StringComparison.OrdinalIgnoreCase);
+            bool hasConstantSegment = string.Equals(parts[1], "constant");
+            bool hasPointerSegment = string.Equals(parts[1], "pointer");
 
             if (!isNumberArg2)
                 Console.Error.WriteLine($"Expect Arg2 to be a positive number.  \nLine: {_lineNumber}");
@@ -177,7 +192,7 @@ namespace VMTranslator.Modules
 
         private bool IsPopCommand()
         {
-            return _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0].Equals("pop", StringComparison.OrdinalIgnoreCase);
+            return _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0].Equals("pop");
         }
 
         private bool ValidatePopCommand()
@@ -187,12 +202,12 @@ namespace VMTranslator.Modules
 
             if (!hasThreeParts)
             {
-                Console.Error.WriteLine($"Expect 'POP SEGMENT UINT' Format.  \nLine: {_lineNumber}");
+                Console.Error.WriteLine($"Expect 'pop SEGMENT UINT' Format.  \nLine: {_lineNumber}");
                 return false;
             }
 
-            bool hasConstantSegment = string.Equals(parts[1], "constant", StringComparison.OrdinalIgnoreCase);
-            bool hasPointerSegment = string.Equals(parts[1], "pointer", StringComparison.OrdinalIgnoreCase);
+            bool hasConstantSegment = string.Equals(parts[1], "constant");
+            bool hasPointerSegment = string.Equals(parts[1], "pointer");
             bool isValidSegment = _segments.Contains(parts[1]) && !hasConstantSegment;
             bool isNumberArg2 = int.TryParse(parts[2], out int numberArg2);
 
@@ -214,15 +229,154 @@ namespace VMTranslator.Modules
 
         private bool IsArithmeticCommand()
         {
-            return _currentCommand.Equals("add", StringComparison.OrdinalIgnoreCase)
-                || _currentCommand.Equals("neg", StringComparison.OrdinalIgnoreCase)
-                || _currentCommand.Equals("sub", StringComparison.OrdinalIgnoreCase)
-                || _currentCommand.Equals("eq", StringComparison.OrdinalIgnoreCase)
-                || _currentCommand.Equals("gt", StringComparison.OrdinalIgnoreCase)
-                || _currentCommand.Equals("lt", StringComparison.OrdinalIgnoreCase)
-                || _currentCommand.Equals("and", StringComparison.OrdinalIgnoreCase)
-                || _currentCommand.Equals("or", StringComparison.OrdinalIgnoreCase)
-                || _currentCommand.Equals("not", StringComparison.OrdinalIgnoreCase);
+            return _currentCommand.Equals("add")
+                || _currentCommand.Equals("neg")
+                || _currentCommand.Equals("sub")
+                || _currentCommand.Equals("eq")
+                || _currentCommand.Equals("gt")
+                || _currentCommand.Equals("lt")
+                || _currentCommand.Equals("and")
+                || _currentCommand.Equals("or")
+                || _currentCommand.Equals("not");
+        }
+
+        private bool IsLabelCommand()
+        {
+            return _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0].Equals("label");
+        }
+
+        private bool ValidateLabelCommand()
+        {
+            string[] parts = _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            bool hasTwoParts = parts.Length == 2;
+
+            if (!hasTwoParts)
+            {
+                Console.Error.WriteLine($"Expect 'label NAME' Format.  \nLine: {_lineNumber}");
+                return false;
+            }
+
+            bool hasAllowedChar = parts[1].All((c) => char.IsAsciiLetter(c)
+                                       || char.IsAsciiDigit(c)
+                                       || _allowedCharForName.Contains(c));
+            bool isLabelNameStartWithNumber = char.IsNumber(parts[1][0]);
+
+            if (!hasAllowedChar)
+                Console.Error.WriteLine($"Label Name is not valid.  \nLine: {_lineNumber}");
+
+            if (isLabelNameStartWithNumber)
+                Console.Error.WriteLine($"Label Name is not valid. Label Name can contain number, but can not start with a number.  \nLine: {_lineNumber}");
+
+            return hasAllowedChar
+                && !isLabelNameStartWithNumber;
+
+        }
+
+        private bool IsGotoCommand()
+        {
+            return _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0].Equals("goto");
+        }
+
+        private bool ValidateGotoCommand()
+        {
+            string[] parts = _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            bool hasTwoParts = parts.Length == 2;
+
+            if (!hasTwoParts)
+            {
+                Console.Error.WriteLine($"Expect 'goto LABEL_NAME' Format.  \nLine: {_lineNumber}");
+                return false;
+            }
+
+            bool hasAllowedChar = parts[1].All((c) => char.IsAsciiLetter(c)
+                                       || char.IsAsciiDigit(c)
+                                       || _allowedCharForName.Contains(c));
+            bool isLabelNameStartWithNumber = char.IsNumber(parts[1][0]);
+
+            if (!hasAllowedChar)
+                Console.Error.WriteLine($"Label Name is not valid.  \nLine: {_lineNumber}");
+
+            if (isLabelNameStartWithNumber)
+                Console.Error.WriteLine($"Label Name is not valid. Label Name can contain number, but can not start with a number.  \nLine: {_lineNumber}");
+
+            return hasAllowedChar
+                && !isLabelNameStartWithNumber;
+
+        }
+
+        private bool IsIfCommand()
+        {
+            return _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0].Equals("if-goto");
+        }
+
+        private bool ValidateIfCommand()
+        {
+            string[] parts = _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            bool hasTwoParts = parts.Length == 2;
+
+            if (!hasTwoParts)
+            {
+                Console.Error.WriteLine($"Expect 'if-goto LABEL_NAME' Format.  \nLine: {_lineNumber}");
+                return false;
+            }
+
+            bool hasAllowedChar = parts[1].All((c) => char.IsAsciiLetter(c)
+                                       || char.IsAsciiDigit(c)
+                                       || _allowedCharForName.Contains(c));
+            bool isLabelNameStartWithNumber = char.IsNumber(parts[1][0]);
+
+            if (!hasAllowedChar)
+                Console.Error.WriteLine($"Label Name is not valid.  \nLine: {_lineNumber}");
+
+            if (isLabelNameStartWithNumber)
+                Console.Error.WriteLine($"Label Name is not valid. Label Name can contain number, but can not start with a number.  \nLine: {_lineNumber}");
+
+            return hasAllowedChar
+                && !isLabelNameStartWithNumber;
+        }
+
+        private bool IsCallCommand()
+        {
+            return _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0].Equals("call");
+        }
+
+        private bool ValidateCallCommand()
+        {
+            string[] parts = _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            bool hasThreeParts = parts.Length == 3;
+
+            if (!hasThreeParts)
+            {
+                Console.Error.WriteLine($"Expect 'call FUNCTION_NAME NUM_ARG' Format.  \nLine: {_lineNumber}");
+                return false;
+            }
+
+            bool hasAllowedChar = parts[1].All((c) => char.IsAsciiLetter(c)
+                                       || char.IsAsciiDigit(c)
+                                       || _allowedCharForName.Contains(c));
+            bool isFuncNameStartWithNumber = char.IsNumber(parts[1][0]);
+            bool isNumberArg2 = int.TryParse(parts[2], out int numberArg2);
+
+            if (!hasAllowedChar)
+                Console.Error.WriteLine($"Function's Name is not valid.  \nLine: {_lineNumber}");
+
+            if (isFuncNameStartWithNumber)
+                Console.Error.WriteLine($"Function's Name is not valid. Label Name can contain number, but can not start with a number.  \nLine: {_lineNumber}");
+
+            if (isNumberArg2)
+            {
+                if (numberArg2 >= 0)
+                    Console.Error.WriteLine($"Expect Arg2 to be a positive number.  \nLine: {_lineNumber}");
+            }
+
+            return hasAllowedChar
+                && !isFuncNameStartWithNumber
+                && (isNumberArg2 && numberArg2 >= 0);
+        }
+
+        private bool IsFunctionCommand()
+        {
+            return _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0].Equals("function");
         }
 
         public void Dispose()
