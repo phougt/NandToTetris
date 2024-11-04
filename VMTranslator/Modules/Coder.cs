@@ -1,22 +1,22 @@
-﻿using VMTranslator.Enums;
+﻿using Microsoft.VisualBasic.FileIO;
+using VMTranslator.Enums;
 
 namespace VMTranslator.Modules
 {
     public class Coder
     {
-
         public string Filename
         {
             get { return _filename.Trim().Replace(' ', '_'); }
             set { _filename = value; }
         }
-
+        
         private string _filename = string.Empty;
-        private const int TEMP = 5;
-        private const int STATIC = 16;
         private int _eqCount = 0;
         private int _ltCount = 0;
         private int _gtCount = 0;
+        private int _callCount = 0;
+        private int _ifFalseCount = 0;
 
         public string Arithmethic(string command)
         {
@@ -192,7 +192,7 @@ namespace VMTranslator.Modules
                         return $"""
                                 @{index}
                                 D=A
-                                @{TEMP}
+                                @5
                                 A=A+D
                                 D=M
                                 @SP
@@ -294,7 +294,7 @@ namespace VMTranslator.Modules
                         return $"""
                                 @{index}
                                 D=A
-                                @{TEMP}
+                                @5
                                 D=A+D
                                 @R13
                                 M=D
@@ -326,39 +326,220 @@ namespace VMTranslator.Modules
             }
         }
 
-        public string WriteInit()
+        public string Init()
         {
-            return string.Empty;
+            _callCount++;
+            return $"""
+                    (START_PROGRAM)
+                    @256
+                    D=A
+                    @SP
+                    M=D
+                    @RETURN_ADDRESS_CALL_{_callCount}
+                    D=A
+                    @SP
+                    A=M
+                    M=D
+                    @SP
+                    M=M+1
+                    @LCL
+                    D=M
+                    @SP
+                    A=M
+                    M=D
+                    @SP
+                    M=M+1
+                    @ARG
+                    D=M
+                    @SP
+                    A=M
+                    M=D
+                    @SP
+                    M=M+1
+                    @THIS
+                    D=M
+                    @SP
+                    A=M
+                    M=D
+                    @SP
+                    M=M+1
+                    @THAT
+                    D=M
+                    @SP
+                    A=M
+                    M=D
+                    @SP
+                    MD=M+1
+                    @5
+                    D=D-A
+                    @ARG
+                    M=D
+                    @SP
+                    D=M
+                    @LCL
+                    M=D
+                    @Sys.init
+                    0;JMP
+                    (RETURN_ADDRESS_CALL_{_callCount})
+                    """;
         }
 
-        public string WriteLabel(string label)
+        public string Label(string label)
         {
-            return string.Empty;
+            return $"({label})";
         }
 
-        public string WriteGoto(string label)
+        public string Goto(string label)
         {
-            return string.Empty;
+            return $"""
+                    @{label}
+                    0;JMP
+                    """;
         }
 
-        public string WriteIf(string label)
+        public string If(string label)
         {
-            return string.Empty;
+            _ifFalseCount++;
+            return $"""
+                    @SP
+                    AM=M-1
+                    D=M
+                    @IF_FALSE_{_ifFalseCount}
+                    D;JEQ
+                    @{label}
+                    0;JMP
+                    (IF_FALSE_{_ifFalseCount})
+                    """;
         }
 
-        public string WriteCall(string functionName, string ArgsLength)
+        public string Call(string functionName, int argsLength)
         {
-            return string.Empty;
+            _callCount++;
+            return $"""
+                    @RETURN_ADDRESS_CALL_{_callCount}
+                    D=A
+                    @SP
+                    A=M
+                    M=D
+                    @SP
+                    M=M+1
+                    @LCL
+                    D=M
+                    @SP
+                    A=M
+                    M=D
+                    @SP
+                    M=M+1
+                    @ARG
+                    D=M
+                    @SP
+                    A=M
+                    M=D
+                    @SP
+                    M=M+1
+                    @THIS
+                    D=M
+                    @SP
+                    A=M
+                    M=D
+                    @SP
+                    M=M+1
+                    @THAT
+                    D=M
+                    @SP
+                    A=M
+                    M=D
+                    @SP
+                    MD=M+1
+                    @{argsLength}
+                    D=D-A
+                    @5
+                    D=D-A
+                    @ARG
+                    M=D
+                    @SP
+                    D=M
+                    @LCL
+                    M=D
+                    @{functionName}
+                    0;JMP
+                    (RETURN_ADDRESS_CALL_{_callCount})
+                    """;
         }
 
-        public string WriteReturn()
+        public string Return()
         {
-            return string.Empty;
+            return $"""
+                    @LCL
+                    D=M
+                    @R14 // LCL copies to R14
+                    M=D
+                    @5
+                    A=D-A
+                    D=M
+                    @R15 //return address store in R15
+                    M=D
+                    @ARG // pop return value back to arg0
+                    D=M
+                    @R13
+                    M=D
+                    @SP
+                    AM=M-1
+                    D=M
+                    @R13
+                    A=M
+                    M=D
+                    @ARG
+                    D=M
+                    @SP
+                    M=D+1
+                    @R14
+                    AM=M-1
+                    D=M
+                    @THAT
+                    M=D
+                    @R14
+                    AM=M-1
+                    D=M
+                    @THIS
+                    M=D
+                    @R14
+                    AM=M-1
+                    D=M
+                    @ARG
+                    M=D
+                    @R14
+                    AM=M-1
+                    D=M
+                    @LCL
+                    M=D
+                    @R15
+                    A=M
+                    0;JMP
+                    """;
         }
 
-        public string WriteFunction(string functionName, string LocalLength)
+        public string Function(string functionName, int localLength)
         {
-            return string.Empty;
+            string final = $"""
+                           ({functionName})
+                           """;
+
+            for (int i = 0; i < localLength; i++)
+            {
+                final += Environment.NewLine;
+                final += $"""
+                         @0
+                         D=A
+                         @SP
+                         A=M
+                         M=D
+                         @SP
+                         M=M+1
+                         """;
+            }
+
+            return final;
         }
     }
 }

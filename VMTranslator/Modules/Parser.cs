@@ -12,8 +12,7 @@ namespace VMTranslator.Modules
         public int Arg2 { get; private set; } = -1;
 
         private StreamReader _reader;
-        private Dictionary<string, CommandType> _command;
-        private HashSet<string> _segments;
+        private ImmutableArray<string> _segments;
         private ImmutableArray<char> _allowedCharForName;
         private string _currentCommand = string.Empty;
         private uint _lineNumber = 1;
@@ -21,46 +20,9 @@ namespace VMTranslator.Modules
         public Parser(string filename)
         {
             _reader = new StreamReader(filename);
+            _segments = ["argument", "local", "static", "constant", "this", "that", "pointer", "temp"];
+            _allowedCharForName = ['_', '.', ':'];
             HasMoreLines = !_reader.EndOfStream;
-            _command = new Dictionary<string, CommandType>()
-            {
-                { "push", CommandType.C_PUSH },
-                { "pop", CommandType.C_POP},
-                { "sub", CommandType.C_ARITHMETIC },
-                { "add", CommandType.C_ARITHMETIC },
-                { "neg", CommandType.C_ARITHMETIC },
-                { "eq", CommandType.C_ARITHMETIC },
-                { "gt", CommandType.C_ARITHMETIC },
-                { "lt", CommandType.C_ARITHMETIC },
-                { "and", CommandType.C_ARITHMETIC },
-                { "or", CommandType.C_ARITHMETIC },
-                { "not", CommandType.C_ARITHMETIC },
-                { "label", CommandType.C_LABEL },
-                { "goto", CommandType.C_GOTO },
-                { "if", CommandType.C_IF },
-                { "call", CommandType.C_CALL },
-                { "return", CommandType.C_RETURN },
-                { "function", CommandType.C_FUNCTION }
-            };
-
-            _segments = new HashSet<string>()
-            {
-                "argument",
-                "local",
-                "static",
-                "constant",
-                "this",
-                "that",
-                "pointer",
-                "temp"
-            };
-
-            _allowedCharForName = new ImmutableArray<char>()
-            {
-                '_',
-                '.',
-                ':',
-            };
         }
 
         public void Advance()
@@ -69,8 +31,8 @@ namespace VMTranslator.Modules
             _currentCommand = temp;
             HasMoreLines = !_reader.EndOfStream;
 
-            TrimWhiteSpaces();
             RemoveComment();
+            TrimWhiteSpaces();
 
             if (_currentCommand == string.Empty)
             {
@@ -123,6 +85,107 @@ namespace VMTranslator.Modules
                 Type = CommandType.C_ARITHMETIC;
                 IsValidCommand = true;
                 Arg1 = _currentCommand;
+                _lineNumber++;
+                return;
+            }
+
+
+            if (IsLabelCommand())
+            {
+                Type = CommandType.C_LABEL;
+
+                if (!ValidateLabelCommand())
+                {
+                    IsValidCommand = false;
+                    _lineNumber++;
+                    return;
+                }
+
+                string[] parts = _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                Arg1 = parts[1];
+                IsValidCommand = true;
+                _lineNumber++;
+                return;
+            }
+
+            if (IsGotoCommand())
+            {
+                Type = CommandType.C_GOTO;
+
+                if (!ValidateGotoCommand())
+                {
+                    IsValidCommand = false;
+                    _lineNumber++;
+                    return;
+                }
+
+                string[] parts = _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                Arg1 = parts[1];
+                IsValidCommand = true;
+                _lineNumber++;
+                return;
+            }
+
+            if (IsIfCommand())
+            {
+                Type = CommandType.C_IF;
+
+                if (!ValidateIfCommand())
+                {
+                    IsValidCommand = false;
+                    _lineNumber++;
+                    return;
+                }
+
+                string[] parts = _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                Arg1 = parts[1];
+                IsValidCommand = true;
+                _lineNumber++;
+                return;
+            }
+
+            if (IsCallCommand())
+            {
+                Type = CommandType.C_CALL;
+
+                if (!ValidateCallCommand())
+                {
+                    IsValidCommand = false;
+                    _lineNumber++;
+                    return;
+                }
+
+                string[] parts = _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                Arg1 = parts[1];
+                Arg2 = int.Parse(parts[2]);
+                IsValidCommand = true;
+                _lineNumber++;
+                return;
+            }
+
+            if (IsReturnCommand())
+            {
+                Type = CommandType.C_RETURN;
+                IsValidCommand = true;
+                _lineNumber++;
+                return;
+            }
+
+            if (IsFunctionCommand())
+            {
+                Type = CommandType.C_FUNCTION;
+
+                if (!ValidateFunctionCommand())
+                {
+                    IsValidCommand = false;
+                    _lineNumber++;
+                    return;
+                }
+
+                string[] parts = _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                Arg1 = parts[1];
+                Arg2 = int.Parse(parts[2]);
+                IsValidCommand = true;
                 _lineNumber++;
                 return;
             }
@@ -262,10 +325,10 @@ namespace VMTranslator.Modules
             bool isLabelNameStartWithNumber = char.IsNumber(parts[1][0]);
 
             if (!hasAllowedChar)
-                Console.Error.WriteLine($"Label Name is not valid.  \nLine: {_lineNumber}");
+                Console.Error.WriteLine($"Label's Name is not valid.  \nLine: {_lineNumber}");
 
             if (isLabelNameStartWithNumber)
-                Console.Error.WriteLine($"Label Name is not valid. Label Name can contain number, but can not start with a number.  \nLine: {_lineNumber}");
+                Console.Error.WriteLine($"Label's Name is not valid. Label Name can contain number, but can not start with a number.  \nLine: {_lineNumber}");
 
             return hasAllowedChar
                 && !isLabelNameStartWithNumber;
@@ -294,10 +357,10 @@ namespace VMTranslator.Modules
             bool isLabelNameStartWithNumber = char.IsNumber(parts[1][0]);
 
             if (!hasAllowedChar)
-                Console.Error.WriteLine($"Label Name is not valid.  \nLine: {_lineNumber}");
+                Console.Error.WriteLine($"Label's Name is not valid.  \nLine: {_lineNumber}");
 
             if (isLabelNameStartWithNumber)
-                Console.Error.WriteLine($"Label Name is not valid. Label Name can contain number, but can not start with a number.  \nLine: {_lineNumber}");
+                Console.Error.WriteLine($"Label's Name is not valid. Label Name can contain number, but can not start with a number.  \nLine: {_lineNumber}");
 
             return hasAllowedChar
                 && !isLabelNameStartWithNumber;
@@ -326,10 +389,10 @@ namespace VMTranslator.Modules
             bool isLabelNameStartWithNumber = char.IsNumber(parts[1][0]);
 
             if (!hasAllowedChar)
-                Console.Error.WriteLine($"Label Name is not valid.  \nLine: {_lineNumber}");
+                Console.Error.WriteLine($"Label's Name is not valid.  \nLine: {_lineNumber}");
 
             if (isLabelNameStartWithNumber)
-                Console.Error.WriteLine($"Label Name is not valid. Label Name can contain number, but can not start with a number.  \nLine: {_lineNumber}");
+                Console.Error.WriteLine($"Label's Name is not valid. Label Name can contain number, but can not start with a number.  \nLine: {_lineNumber}");
 
             return hasAllowedChar
                 && !isLabelNameStartWithNumber;
@@ -365,8 +428,8 @@ namespace VMTranslator.Modules
 
             if (isNumberArg2)
             {
-                if (numberArg2 >= 0)
-                    Console.Error.WriteLine($"Expect Arg2 to be a positive number.  \nLine: {_lineNumber}");
+                if (!(numberArg2 >= 0))
+                    Console.Error.WriteLine($"Expect number of arguments to be 0 or larger.  \nLine: {_lineNumber}");
             }
 
             return hasAllowedChar
@@ -377,6 +440,45 @@ namespace VMTranslator.Modules
         private bool IsFunctionCommand()
         {
             return _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0].Equals("function");
+        }
+
+        private bool ValidateFunctionCommand()
+        {
+            string[] parts = _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            bool hasThreeParts = parts.Length == 3;
+
+            if (!hasThreeParts)
+            {
+                Console.Error.WriteLine($"Expect 'function FUNCTION_NAME NUM_LOCAL' Format.  \nLine: {_lineNumber}");
+                return false;
+            }
+
+            bool hasAllowedChar = parts[1].All((c) => char.IsAsciiLetter(c)
+                                       || char.IsAsciiDigit(c)
+                                       || _allowedCharForName.Contains(c));
+            bool isFuncNameStartWithNumber = char.IsNumber(parts[1][0]);
+            bool isNumberArg2 = int.TryParse(parts[2], out int numberArg2);
+
+            if (!hasAllowedChar)
+                Console.Error.WriteLine($"Function's Name is not valid.  \nLine: {_lineNumber}");
+
+            if (isFuncNameStartWithNumber)
+                Console.Error.WriteLine($"Function's Name is not valid. Label Name can contain number, but can not start with a number.  \nLine: {_lineNumber}");
+
+            if (isNumberArg2)
+            {
+                if (!(numberArg2 >= 0))
+                    Console.Error.WriteLine($"Expect number of local variable to be 0 or larger.  \nLine: {_lineNumber}");
+            }
+
+            return hasAllowedChar
+                && !isFuncNameStartWithNumber
+                && (isNumberArg2 && numberArg2 >= 0);
+        }
+
+        private bool IsReturnCommand()
+        {
+            return _currentCommand.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0].Equals("return");
         }
 
         public void Dispose()

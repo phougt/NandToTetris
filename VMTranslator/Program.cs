@@ -1,6 +1,8 @@
 ﻿using VMTranslator.Modules;
 using VMTranslator.Enums;
 using System.Text;
+using System.Runtime.InteropServices;
+using System.ComponentModel.Design;
 
 namespace VMTranslator
 {
@@ -78,11 +80,6 @@ namespace VMTranslator
                                    A=M
                                    0;JMP
                                    """);
-
-            //Mark the start of the actual program
-            s_ASMOutput.AppendLine("""
-                                   (START_PROGRAM)
-                                   """);
         }
 
         public static void Main(string[] args)
@@ -129,13 +126,36 @@ namespace VMTranslator
                 }
 
                 Coder coder = new Coder();
+                HashSet<string> functionNames = new HashSet<string>();
+                HashSet<string> labelNames = new HashSet<string>();
+
+                s_ASMOutput.AppendLine(coder.Init());
+
+                foreach (string file in vmFiles)
+                {
+                    string[] tempFunctionNames = GetFunctionNames(file);
+                    string[] tempLabelNames = GetLabelNames(file);
+
+                    foreach (string function in tempFunctionNames)
+                    {
+                        functionNames.Add(function);
+                    }
+
+                    foreach (string label in tempLabelNames)
+                    {
+                        labelNames.Add(label);
+                    }
+                }
+
+                if (functionNames.Count == 0 || labelNames.Count == 0)
+                    Environment.Exit(1);
 
                 foreach (string file in vmFiles)
                 {
                     coder.Filename = Path.GetFileNameWithoutExtension(file);
-                    StringBuilder? temp = Translate(file, coder);
+                    string temp = Translate(file, coder, functionNames, labelNames);
 
-                    if (temp != null)
+                    if (temp != string.Empty)
                         s_ASMOutput.Append(temp);
                     else
                         s_canGenerateASM = false;
@@ -151,9 +171,18 @@ namespace VMTranslator
 
                 Coder coder = new Coder();
                 coder.Filename = Path.GetFileNameWithoutExtension(firstArg);
-                StringBuilder? temp = Translate(firstArg, coder);
 
-                if (temp != null)
+                HashSet<string> functionNames = GetFunctionNames(firstArg).ToHashSet();
+                HashSet<string> labelNames = GetLabelNames(firstArg).ToHashSet();
+
+                if (functionNames.Count == 0 || labelNames.Count == 0)
+                    Environment.Exit(1);
+
+                string temp = Translate(firstArg, coder, functionNames, labelNames);
+
+                s_ASMOutput.AppendLine(coder.Init());
+
+                if (temp != string.Empty)
                     s_ASMOutput.Append(temp);
                 else
                     s_canGenerateASM = false;
@@ -186,10 +215,13 @@ namespace VMTranslator
             }
         }
 
-        public static StringBuilder? Translate(string sourcePath, Coder coder)
+        public static string[] GetLabelNames(string sourcePath)
         {
             Parser? parser = null;
-            StringBuilder tempASMoutput = new StringBuilder();
+            List<string> labelNames = new List<string>();
+
+            string currentFunctionName = string.Empty;
+            int lineNumber = 0;
             bool canGenerateASM = true;
 
             try
@@ -211,31 +243,209 @@ namespace VMTranslator
                     canGenerateASM = false;
                 }
 
+                lineNumber++;
+
                 CommandType currentCommandType = parser.Type;
 
                 if (currentCommandType == CommandType.NONE)
                     continue;
 
-                string segment = parser.Arg1;
-                int index = parser.Arg2;
+                string arg1 = parser.Arg1;
+                int arg2 = parser.Arg2;
 
-                if (currentCommandType == CommandType.C_PUSH)
+                if (currentCommandType == CommandType.C_FUNCTION)
                 {
-                    tempASMoutput.AppendLine(coder.PushPop(CommandType.C_PUSH, segment, index));
+                    currentFunctionName = arg1;
                 }
-                else if (currentCommandType == CommandType.C_POP)
+                else if (currentCommandType == CommandType.C_LABEL)
                 {
-                    tempASMoutput.AppendLine(coder.PushPop(CommandType.C_POP, segment, index));
-                }
-                else if (currentCommandType == CommandType.C_ARITHMETIC)
-                {
-                    tempASMoutput.AppendLine(coder.Arithmethic(segment));
+                    if (!labelNames.Contains($"{currentFunctionName}${arg1}"))
+                    {
+                        labelNames.Add($"{currentFunctionName}${arg1}");
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine($"Label - {arg1} is already defined once. Line: {lineNumber}");
+                        canGenerateASM = false;
+                    }
                 }
             }
 
             parser?.Dispose();
 
-            return (canGenerateASM) ? tempASMoutput : null;
+            return canGenerateASM ? labelNames.ToArray() : Array.Empty<string>();
+        }
+
+        public static string[] GetFunctionNames(string sourcePath)
+        {
+            Parser? parser = null;
+            List<string> functionNames = new List<string>();
+
+            string currentFunctionName = string.Empty;
+            int lineNumber = 0;
+            bool canGenerateASM = true;
+
+            try
+            {
+                parser = new Parser(sourcePath);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(ex.Message);
+                Environment.Exit(1);
+            }
+
+            while (parser.HasMoreLines)
+            {
+                parser.Advance();
+
+                if (!parser.IsValidCommand)
+                {
+                    canGenerateASM = false;
+                }
+
+                lineNumber++;
+
+                CommandType currentCommandType = parser.Type;
+
+                if (currentCommandType == CommandType.NONE)
+                    continue;
+
+                string arg1 = parser.Arg1;
+                int arg2 = parser.Arg2;
+
+                if (currentCommandType == CommandType.C_FUNCTION)
+                {
+                    if (!functionNames.Contains(arg1))
+                    {
+                        functionNames.Add(arg1);
+                    }
+                    else
+                    {
+                        Console.Error.WriteLine($"Function - {arg1} is already defined once. Line: {lineNumber}");
+                        canGenerateASM = false;
+                    }
+                }
+            }
+
+            parser?.Dispose();
+
+            return canGenerateASM ? functionNames.ToArray() : Array.Empty<string>();
+        }
+
+        public static string Translate(string sourcePath, Coder coder, HashSet<string> functionNames, HashSet<string> labelNames)
+        {
+            Parser? parser = null;
+            StringBuilder tempASMoutput = new StringBuilder();
+
+            string currentFunctionName = string.Empty;
+            int lineNumber = 0;
+            bool canGenerateASM = true;
+
+            try
+            {
+                parser = new Parser(sourcePath);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(ex.Message);
+                Environment.Exit(1);
+            }
+
+            while (parser.HasMoreLines)
+            {
+                parser.Advance();
+
+                if (!parser.IsValidCommand)
+                {
+                    canGenerateASM = false;
+                }
+
+                lineNumber++;
+
+                CommandType currentCommandType = parser.Type;
+
+                if (currentCommandType == CommandType.NONE)
+                    continue;
+
+                string arg1 = parser.Arg1;
+                int arg2 = parser.Arg2;
+
+                switch (currentCommandType)
+                {
+                    case CommandType.C_PUSH:
+                        {
+                            tempASMoutput.AppendLine(coder.PushPop(CommandType.C_PUSH, arg1, arg2));
+                            break;
+                        }
+                    case CommandType.C_POP:
+                        {
+                            tempASMoutput.AppendLine(coder.PushPop(CommandType.C_POP, arg1, arg2));
+                            break;
+                        }
+                    case CommandType.C_ARITHMETIC:
+                        {
+                            tempASMoutput.AppendLine(coder.Arithmethic(arg1));
+                            break;
+                        }
+                    case CommandType.C_LABEL:
+                        {
+                            tempASMoutput.AppendLine(coder.Label($"{currentFunctionName}${arg1}"));
+                            break;
+                        }
+                    case CommandType.C_GOTO:
+                        {
+                            if (!labelNames.Contains($"{currentFunctionName}${arg1}"))
+                            {
+                                Console.Error.WriteLine($"Unknown Label - {arg1}. Line: {lineNumber}");
+                                canGenerateASM = false;
+                                break;
+                            }
+
+                            tempASMoutput.AppendLine(coder.Goto($"{currentFunctionName}${arg1}"));
+                            break;
+                        }
+                    case CommandType.C_IF:
+                        {
+                            if (!labelNames.Contains($"{currentFunctionName}${arg1}"))
+                            {
+                                Console.Error.WriteLine($"Unknown Label - {arg1}. Line: {lineNumber}");
+                                canGenerateASM = false;
+                                break;
+                            }
+
+                            tempASMoutput.AppendLine(coder.If($"{currentFunctionName}${arg1}"));
+                            break;
+                        }
+                    case CommandType.C_CALL:
+                        {
+                            if (!functionNames.Contains(arg1))
+                            {
+                                Console.Error.WriteLine($"Unknown Function - {arg1}. Line: {lineNumber}");
+                                canGenerateASM = false;
+                                break;
+                            }
+
+                            tempASMoutput.AppendLine(coder.Call(arg1, arg2));
+                            break;
+                        }
+                    case CommandType.C_RETURN:
+                        {
+                            tempASMoutput.AppendLine(coder.Return());
+                            break;
+                        }
+                    case CommandType.C_FUNCTION:
+                        {
+                            currentFunctionName = arg1;
+                            tempASMoutput.AppendLine(coder.Function(arg1, arg2));
+                            break;
+                        }
+                };
+            }
+
+            parser?.Dispose();
+
+            return canGenerateASM ? tempASMoutput.ToString() : string.Empty;
         }
     }
 }
