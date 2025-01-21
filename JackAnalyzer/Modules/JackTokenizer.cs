@@ -2,20 +2,18 @@
 using JackAnalyzer.Models;
 using FluentResults;
 using System.Collections.Immutable;
+using JackAnalyzer.Errors;
 
 namespace JackAnalyzer.Modules
 {
     public class JackTokenizer : IDisposable
     {
-        public bool HasMoreTokens { get; private set; } = true;
-        public Token Token { get; private set; }
         private StreamReader _reader = StreamReader.Null;
         private ImmutableArray<char> _validSymbols;
         private ImmutableArray<string> _validKeywords;
         public JackTokenizer(string filePath)
         {
             _reader = new StreamReader(filePath);
-            HasMoreTokens = !_reader.EndOfStream;
             _validSymbols = [
                 '{',
                 '}',
@@ -65,17 +63,19 @@ namespace JackAnalyzer.Modules
 
         public Result<Token> Advance()
         {
-            if (_reader.EndOfStream)
+            bool hasMoreChars = !_reader.EndOfStream;
+
+            if (!hasMoreChars)
             {
-                return Result.Fail("End of Stream");
+                return Result.Fail(new EndOfStreamError { Message = "End of Stream!" });
             }
 
             string tempWord = string.Empty;
 
-            while (HasMoreTokens)
+            while (hasMoreChars)
             {
                 char tempChar = (char)_reader.Peek();
-                HasMoreTokens = !_reader.EndOfStream;
+                hasMoreChars = !_reader.EndOfStream;
 
                 bool startWithWhiteSpace = char.IsWhiteSpace(tempChar);
 
@@ -114,10 +114,15 @@ namespace JackAnalyzer.Modules
                 {
                     if (tempChar.Equals('\"'))
                     {
+                        _reader.Read();
                         return Result.Ok(new Token(TokenType.STRING_CONST, tempWord.Remove(0, 1)));
                         // .Remove(0, 1) is to remove the first double quote
                     }
-                    else if (!tempChar.Equals(Environment.NewLine))
+                    else if (tempChar.Equals('\n') || tempChar.Equals('\r'))
+                    {
+                        return Result.Fail(new InvalidCharError { Message = "Illegal newline char in string literal." });
+                    }
+                    else
                     {
                         tempWord += tempChar;
                         _reader.Read();
@@ -138,7 +143,7 @@ namespace JackAnalyzer.Modules
                     {
                         if (_validKeywords.Any(keyword => keyword.Equals(tempWord)))
                         {
-                            return Result.Ok(new Token(TokenType.KEYWORD, tempWord));
+                            return Result.Ok(new Token(TokenType.KEYWORD, Enum.Parse<KeywordType>(tempWord.ToUpper())));
                         }
                         else
                         {
@@ -148,7 +153,7 @@ namespace JackAnalyzer.Modules
                 }
             }
 
-            return Result.Fail("End of Logic");
+            return Result.Fail(new EndOfStreamError { Message = "End of stream!" });
         }
 
         public void Dispose()
