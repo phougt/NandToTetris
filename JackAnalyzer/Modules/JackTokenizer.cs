@@ -9,8 +9,8 @@ namespace JackAnalyzer.Modules
     public class JackTokenizer : IDisposable
     {
         private StreamReader _reader = StreamReader.Null;
-        private ImmutableArray<char> _validSymbols;
-        private ImmutableArray<string> _validKeywords;
+        private HashSet<char> _validSymbols;
+        private HashSet<string> _validKeywords;
         public JackTokenizer(string filePath)
         {
             _reader = new StreamReader(filePath);
@@ -91,7 +91,7 @@ namespace JackAnalyzer.Modules
                 bool startWithDigit = char.IsAsciiDigit(tempWord[0]);
                 bool startWithDoubleQuote = tempWord[0].Equals('\"');
                 bool startWithLetter = char.IsAsciiLetter(tempWord[0]);
-                bool startWithSymbol = _validSymbols.Any(c => c.Equals(tempWord[0]));
+                bool startWithSymbol = _validSymbols.Contains(tempWord[0]);
 
                 if (startWithSymbol)
                 {
@@ -141,7 +141,7 @@ namespace JackAnalyzer.Modules
                     }
                     else
                     {
-                        if (_validKeywords.Any(keyword => keyword.Equals(tempWord)))
+                        if (_validKeywords.Contains(tempWord))
                         {
                             return Result.Ok(new Token(TokenType.KEYWORD, Enum.Parse<KeywordType>(tempWord.ToUpper())));
                         }

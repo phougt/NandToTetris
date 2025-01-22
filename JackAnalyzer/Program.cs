@@ -14,7 +14,7 @@ namespace JackAnalyzer
             string filePath = "C:\\Users\\phoug\\Desktop\\test.txt";
             JackTokenizer tokenizer = new JackTokenizer(filePath);
 
-            for (int i = 1; i <= 33; i++)
+            for (int i = 1; i <= 36; i++)
             {
                 Result<Token> result = tokenizer.Advance();
                 if (result.IsSuccess)
