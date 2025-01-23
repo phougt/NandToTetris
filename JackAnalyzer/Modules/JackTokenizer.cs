@@ -8,9 +8,9 @@ namespace JackAnalyzer.Modules
 {
     public class JackTokenizer : IDisposable
     {
-        private StreamReader _reader = StreamReader.Null;
-        private HashSet<char> _validSymbols;
-        private HashSet<string> _validKeywords;
+        private readonly StreamReader _reader;
+        private readonly HashSet<char> _validSymbols;
+        private readonly HashSet<string> _validKeywords;
         public JackTokenizer(string filePath)
         {
             _reader = new StreamReader(filePath);
