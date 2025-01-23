@@ -90,7 +90,7 @@ namespace JackAnalyzer.Modules
 
                 bool startWithDigit = char.IsAsciiDigit(tempWord[0]);
                 bool startWithDoubleQuote = tempWord[0].Equals('\"');
-                bool startWithLetter = char.IsAsciiLetter(tempWord[0]);
+                bool startWithLetterOrUnderscore = char.IsAsciiLetter(tempWord[0]) || tempWord[0].Equals('_');
                 bool startWithSymbol = _validSymbols.Contains(tempWord[0]);
 
                 if (startWithSymbol)
@@ -129,7 +129,7 @@ namespace JackAnalyzer.Modules
                         continue;
                     }
                 }
-                else if (startWithLetter)
+                else if (startWithLetterOrUnderscore)
                 {
                     bool isValidChar = char.IsAsciiLetterOrDigit(tempChar) || tempChar.Equals('_');
 
