@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace JackAnalyzer.Enums
 {
-    public enum KeywordType
+    public enum Keyword
     {
         CLASS,
         METHOD,
