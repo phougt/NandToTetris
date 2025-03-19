@@ -3,6 +3,7 @@ using JackAnalyzer.Models;
 using FluentResults;
 using System.Collections.Immutable;
 using JackAnalyzer.Errors;
+using JackAnalyzer.Extensions;
 
 namespace JackAnalyzer.Modules
 {
@@ -95,7 +96,7 @@ namespace JackAnalyzer.Modules
 
                 if (startWithSymbol)
                 {
-                    return Result.Ok(new Token(TokenType.SYMBOL, tempWord[0]));
+                    return Result.Ok(new Token(TokenType.SYMBOL, tempWord.ToSymbol()));
                 }
                 else if (startWithDigit)
                 {
@@ -143,7 +144,7 @@ namespace JackAnalyzer.Modules
                     {
                         if (_validKeywords.Contains(tempWord))
                         {
-                            return Result.Ok(new Token(TokenType.KEYWORD, Enum.Parse<KeywordType>(tempWord.ToUpper())));
+                            return Result.Ok(new Token(TokenType.KEYWORD, Enum.Parse<Keyword>(tempWord.ToUpper())));
                         }
                         else
                         {
