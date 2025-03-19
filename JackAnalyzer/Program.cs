@@ -4,6 +4,7 @@ using FluentResults;
 using JackAnalyzer.Enums;
 using System.ComponentModel.Design;
 using JackAnalyzer.Errors;
+using System.Diagnostics;
 
 namespace JackAnalyzer
 {
@@ -11,45 +12,15 @@ namespace JackAnalyzer
     {
         static void Main(string[] args)
         {
+            Stopwatch watch = new Stopwatch();
+            watch.Start();
             string filePath = "C:\\Users\\phoug\\Desktop\\test.txt";
+
             JackTokenizer tokenizer = new JackTokenizer(filePath);
+            CompilationEngine engine = new CompilationEngine(tokenizer);
+            engine.CompileClass();
 
-            for (int i = 1; i <= 36; i++)
-            {
-                Result<Token> result = tokenizer.Advance();
-                if (result.IsSuccess)
-                {
-                    Token token = result.Value;
-
-                    switch (token.Type)
-                    {
-                        case TokenType.SYMBOL:
-                            Console.WriteLine($"SYMBOL: {(char)token.Value}");
-                            break;
-                        case TokenType.INT_CONST:
-                            Console.WriteLine($"INT_CONST: {(int)token.Value}");
-                            break;
-                        case TokenType.STRING_CONST:
-                            Console.WriteLine($"STRING_CONST: {(string)token.Value}");
-                            break;
-                        case TokenType.KEYWORD:
-                            Console.WriteLine($"KEYWORD: {(KeywordType)token.Value}");
-                            break;
-                        case TokenType.IDENTIFIER:
-                            Console.WriteLine($"IDENTIFIER: {(string)token.Value}");
-                            break;
-                    }
-                }
-                else if (result.HasError<InvalidCharError>())
-                {
-                    foreach (IError error in result.Errors)
-                    {
-                        Console.WriteLine(error.Message);
-                    }
-
-                    return;
-                }
-            }
+            Console.WriteLine(watch.Elapsed);
         }
     }
 }
