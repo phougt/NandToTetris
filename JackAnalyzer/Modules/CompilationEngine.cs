@@ -1,4 +1,9 @@
-﻿using System;
+﻿using FluentResults;
+using JackAnalyzer.Enums;
+using JackAnalyzer.Extensions;
+using JackAnalyzer.Errors;
+using JackAnalyzer.Models;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,63 +13,142 @@ namespace JackAnalyzer.Modules
 {
     public class CompilationEngine
     {
-        public CompilationEngine()
+        private readonly JackTokenizer _tokenizer;
+        private readonly StringBuilder _output;
+
+        public CompilationEngine(JackTokenizer tokenizer)
         {
+            _tokenizer = tokenizer;
+        }
+
+        private void Eat(Symbol symbol)
+        {
+            Result<Token> result = _tokenizer.Advance();
+
+            if (result.IsFailed)
+            {
+                foreach (IError error in result.Errors)
+                {
+                    Console.Error.WriteLine(error.Message);
+                }
+
+                Environment.Exit(1);
+            }
+
+            Token tempToken = result.Value;
+            TokenType tokenType = tempToken.Type;
+
+            if (tokenType != TokenType.SYMBOL || (Symbol)tempToken.Value != symbol)
+            {
+                Console.Error.WriteLine($"Expected '{SymbolExtensions.ToString(symbol)}', but got {tempToken.Value} instead.");
+                Environment.Exit(1);
+            }
+        }
+
+        private void Eat(Keyword keyword)
+        {
+            Result<Token> result = _tokenizer.Advance();
+
+            if (result.IsFailed)
+            {
+                foreach (IError error in result.Errors)
+                {
+                    Console.Error.WriteLine(error.Message);
+                }
+
+                Environment.Exit(1);
+            }
+
+            Token tempToken = result.Value;
+            TokenType tokenType = tempToken.Type;
+
+            if (tokenType != TokenType.KEYWORD || (Keyword)tempToken.Value != keyword)
+            {
+                Console.Error.WriteLine($"Expected '{keyword.ToString().ToLower()}', but got {tempToken.Value} instead.");
+                Environment.Exit(1);
+            }
+        }
+
+        private void Eat(TokenType tokenType)
+        {
+            Result<Token> result = _tokenizer.Advance();
+
+            if (result.IsFailed)
+            {
+                foreach (IError error in result.Errors)
+                {
+                    Console.Error.WriteLine(error.Message);
+                }
+
+                Environment.Exit(1);
+            }
+
+            Token tempToken = result.Value;
+
+            if (tempToken.Type != tokenType)
+            {
+                Console.Error.WriteLine($"Expected '{tokenType.ToString().ToLower()}', but got {tempToken.Value} instead.");
+                Environment.Exit(1);
+            }
         }
 
         public void CompileClass()
         {
+            Eat(Keyword.CLASS);
+            Eat(TokenType.IDENTIFIER);
+            Eat(Symbol.LBRACE);
+            Eat(Symbol.RBRACE);
         }
 
-        public void CompileClassVar()
+        private void CompileClassVar()
         {
         }
 
-        public void CompileSubroutine()
+        private void CompileSubroutine()
         {
         }
 
-        public void CompileParameterList()
+        private void CompileParameterList()
         {
         }
 
-        public void CompileVarDec()
+        private void CompileVarDec()
         {
         }
 
-        public void CompileStatements()
+        private void CompileStatements()
         {
         }
 
-        public void CompileDo()
+        private void CompileDo()
         {
         }
 
-        public void CompileLet()
+        private void CompileLet()
         {
         }
 
-        public void CompileWhile()
+        private void CompileWhile()
         {
         }
 
-        public void CompileReturn()
+        private void CompileReturn()
         {
         }
 
-        public void CompileIf()
+        private void CompileIf()
         {
         }
 
-        public void CompileExpression()
+        private void CompileExpression()
         {
         }
 
-        public void CompileTerm()
+        private void CompileTerm()
         {
         }
 
-        public void CompileExpressionList()
+        private void CompileExpressionList()
         {
         }
     }
