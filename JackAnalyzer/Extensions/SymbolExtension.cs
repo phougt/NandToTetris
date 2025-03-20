@@ -1,7 +1,7 @@
 using JackAnalyzer.Enums;
 namespace JackAnalyzer.Extensions
 {
-    public static class SymbolExtensions
+    public static class SymbolExtension
     {
         public static string ToString(this Symbol symbol)
         {
