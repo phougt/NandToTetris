@@ -15,93 +15,68 @@ namespace JackAnalyzer.Modules
     {
         private readonly JackTokenizer _tokenizer;
         private readonly StringBuilder _output;
+        private Result<Token> _currentResult;
 
         public CompilationEngine(JackTokenizer tokenizer)
         {
             _tokenizer = tokenizer;
         }
 
-        private void Eat(Symbol symbol)
-        {
-            Result<Token> result = _tokenizer.Advance();
-
-            if (result.IsFailed)
-            {
-                foreach (IError error in result.Errors)
-                {
-                    Console.Error.WriteLine(error.Message);
-                }
-
-                Environment.Exit(1);
-            }
-
-            Token tempToken = result.Value;
-            TokenType tokenType = tempToken.Type;
-
-            if (tokenType != TokenType.SYMBOL || (Symbol)tempToken.Value != symbol)
-            {
-                Console.Error.WriteLine($"Expected '{SymbolExtensions.ToString(symbol)}', but got {tempToken.Value} instead.");
-                Environment.Exit(1);
-            }
-        }
-
-        private void Eat(Keyword keyword)
-        {
-            Result<Token> result = _tokenizer.Advance();
-
-            if (result.IsFailed)
-            {
-                foreach (IError error in result.Errors)
-                {
-                    Console.Error.WriteLine(error.Message);
-                }
-
-                Environment.Exit(1);
-            }
-
-            Token tempToken = result.Value;
-            TokenType tokenType = tempToken.Type;
-
-            if (tokenType != TokenType.KEYWORD || (Keyword)tempToken.Value != keyword)
-            {
-                Console.Error.WriteLine($"Expected '{keyword.ToString().ToLower()}', but got {tempToken.Value} instead.");
-                Environment.Exit(1);
-            }
-        }
-
-        private void Eat(TokenType tokenType)
-        {
-            Result<Token> result = _tokenizer.Advance();
-
-            if (result.IsFailed)
-            {
-                foreach (IError error in result.Errors)
-                {
-                    Console.Error.WriteLine(error.Message);
-                }
-
-                Environment.Exit(1);
-            }
-
-            Token tempToken = result.Value;
-
-            if (tempToken.Type != tokenType)
-            {
-                Console.Error.WriteLine($"Expected '{tokenType.ToString().ToLower()}', but got {tempToken.Value} instead.");
-                Environment.Exit(1);
-            }
-        }
-
         public void CompileClass()
         {
-            Eat(Keyword.CLASS);
-            Eat(TokenType.IDENTIFIER);
-            Eat(Symbol.LBRACE);
-            Eat(Symbol.RBRACE);
+            _currentResult = _tokenizer.Advance()
+                                    .PrintErrorAndExitIfFailed()
+                                    .ExpectOrExit(Keyword.CLASS);
+
+            _currentResult = _tokenizer.Advance()
+                    .PrintErrorAndExitIfFailed()
+                    .ExpectOrExit(TokenType.IDENTIFIER);
+
+            _currentResult = _tokenizer.Advance()
+                    .PrintErrorAndExitIfFailed()
+                    .ExpectOrExit(Symbol.LBRACE);
+
+            _currentResult = _tokenizer.Advance()
+                            .PrintErrorAndExitIfFailed();
+
+            CompileClassVar();
+            
+            _currentResult.PrintErrorAndExitIfFailed()
+                        .ExpectOrExit(Symbol.RBRACE);
         }
 
         private void CompileClassVar()
         {
+            if (_currentResult.Expect(Keyword.STATIC) || _currentResult.Expect(Keyword.FIELD))
+            {
+                _currentResult = _tokenizer.Advance()
+                                .PrintErrorAndExitIfFailed()
+                                .ExpectOrExit(TokenType.IDENTIFIER);
+
+                _currentResult = _tokenizer.Advance()
+                                .PrintErrorAndExitIfFailed();
+
+                while (_currentResult.Expect(Symbol.COMMA))
+                {
+                    _currentResult = _tokenizer.Advance()
+                                    .PrintErrorAndExitIfFailed()
+                                    .ExpectOrExit(TokenType.IDENTIFIER);
+
+                    _currentResult = _tokenizer.Advance()
+                                    .PrintErrorAndExitIfFailed();
+                }
+
+                _currentResult.PrintErrorAndExitIfFailed()
+                            .ExpectOrExit(Symbol.SEMICOLON);
+                
+                _currentResult = _tokenizer.Advance()
+                                .PrintErrorAndExitIfFailed();
+
+                CompileClassVar();
+            }
+
+            CompileSubroutine();
+
         }
 
         private void CompileSubroutine()
