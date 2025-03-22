@@ -3,7 +3,7 @@ namespace JackAnalyzer.Extensions
 {
     public static class SymbolExtension
     {
-        public static string ToString(this Symbol symbol)
+        public static string ToSymbolString(this Symbol symbol)
         {
             return symbol switch
             {
