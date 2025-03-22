@@ -67,5 +67,28 @@ namespace JackAnalyzer.Extensions
         {
             return token.Value.Type == tokenType;
         }
+
+        public static Result<Token> ExpectTypeOrExit(this Result<Token> token)
+        {
+            bool isType = token.Expect(Keyword.INT) || token.Expect(Keyword.CHAR) || token.Expect(Keyword.BOOLEAN) || token.Expect(TokenType.IDENTIFIER);
+
+            if (!isType)
+            {
+                Console.Error.WriteLine("Expected type");
+                Environment.Exit(1);
+            }
+
+            return token;
+        }
+
+        public static bool ExpectType(this Result<Token> token)
+        {
+            return token.Expect(Keyword.INT) || token.Expect(Keyword.CHAR) || token.Expect(Keyword.BOOLEAN) || token.Expect(TokenType.IDENTIFIER);
+        }
+
+        public static bool ExpectBuiltInType(this Result<Token> token)
+        {
+            return token.Expect(Keyword.INT) || token.Expect(Keyword.CHAR) || token.Expect(Keyword.BOOLEAN);
+        }
     }
 }
