@@ -90,5 +90,49 @@ namespace JackAnalyzer.Extensions
         {
             return token.Expect(Keyword.INT) || token.Expect(Keyword.CHAR) || token.Expect(Keyword.BOOLEAN);
         }
+
+        public static bool IsKeywordConstant(this Result<Token> token)
+        {
+            return token.Expect(Keyword.TRUE)
+                || token.Expect(Keyword.FALSE)
+                || token.Expect(Keyword.NULL)
+                || token.Expect(Keyword.THIS);
+        }
+
+        public static bool IsUnaryOperator(this Result<Token> token)
+        {
+            return token.Expect(Symbol.MINUS)
+                || token.Expect(Symbol.PLUS)
+                || token.Expect(Symbol.STAR)
+                || token.Expect(Symbol.SLASH)
+                || token.Expect(Symbol.AMP)
+                || token.Expect(Symbol.PIPE)
+                || token.Expect(Symbol.LT)
+                || token.Expect(Symbol.GT)
+                || token.Expect(Symbol.EQUAL)
+                || token.Expect(Symbol.TILDE);
+        }
+
+
+        public static bool IsTerm(this Result<Token> token)
+        {
+
+            return token.Expect(TokenType.INT_CONST)
+                || token.Expect(TokenType.STRING_CONST)
+                || token.Expect(TokenType.IDENTIFIER)
+                || token.Expect(Keyword.DO)
+                || token.Expect(Symbol.LPAR)
+                || token.IsKeywordConstant()
+                || token.IsUnaryOperator();
+        }
+
+        public static bool IsStatements(this Result<Token> token)
+        {
+            return token.Expect(Keyword.LET)
+                || token.Expect(Keyword.IF)
+                || token.Expect(Keyword.WHILE)
+                || token.Expect(Keyword.DO)
+                || token.Expect(Keyword.RETURN);
+        }
     }
 }
