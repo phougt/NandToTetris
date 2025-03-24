@@ -14,11 +14,13 @@ namespace JackAnalyzer
         {
             Stopwatch watch = new Stopwatch();
             watch.Start();
-            string filePath = "C:\\Users\\phoug\\Desktop\\test.txt";
+            string filePath = "C:\\Users\\phoug\\Desktop\\SquareGame.jack";
+            string outputPath = "C:\\Users\\phoug\\Desktop\\SquareGameOut.xml";
 
             JackTokenizer tokenizer = new JackTokenizer(filePath);
-            CompilationEngine engine = new CompilationEngine(tokenizer);
+            CompilationEngine engine = new CompilationEngine(tokenizer, outputPath);
             engine.CompileClass();
+            engine.TryWriteOutputToFile();
 
             Console.WriteLine(watch.Elapsed);
         }
