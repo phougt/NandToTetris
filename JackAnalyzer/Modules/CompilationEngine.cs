@@ -758,6 +758,8 @@ namespace JackAnalyzer.Modules
             else if (_currentResult.IsUnaryOperator())
             {
                 AppendSymbol(_currentResult);
+                _currentResult = _tokenizer.Advance()
+                                .PrintErrorAndExitIfFailed();
 
                 if (!_currentResult.IsTerm())
                 {
@@ -794,6 +796,52 @@ namespace JackAnalyzer.Modules
                     _currentResult.PrintErrorAndExitIfFailed()
                                 .ExpectOrExit(Symbol.RBRACK);
                     AppendSymbol(_currentResult);
+                    _currentResult = _tokenizer.Advance()
+                                    .PrintErrorAndExitIfFailed();
+                }
+                else if (_currentResult.Expect(Symbol.LPAR))
+                {
+                    AppendSymbol(_currentResult);
+
+                    _currentResult = _tokenizer.Advance()
+                                    .PrintErrorAndExitIfFailed();
+
+                    CompileExpressionList();
+
+                    _currentResult.PrintErrorAndExitIfFailed()
+                                .ExpectOrExit(Symbol.RPAR);
+
+                    AppendSymbol(_currentResult);
+                    _currentResult = _tokenizer.Advance()
+                                    .PrintErrorAndExitIfFailed();
+                }
+                else if (_currentResult.Expect(Symbol.DOT))
+                {
+                    AppendSymbol(_currentResult);
+
+                    _currentResult = _tokenizer.Advance()
+                                    .PrintErrorAndExitIfFailed()
+                                    .ExpectOrExit(TokenType.IDENTIFIER);
+
+                    AppendIdentifier(_currentResult);
+
+                    _currentResult = _tokenizer.Advance()
+                                    .PrintErrorAndExitIfFailed()
+                                    .ExpectOrExit(Symbol.LPAR);
+
+                    AppendSymbol(_currentResult);
+
+                    _currentResult = _tokenizer.Advance()
+                                    .PrintErrorAndExitIfFailed();
+
+                    CompileExpressionList();
+
+                    _currentResult.PrintErrorAndExitIfFailed()
+                                .ExpectOrExit(Symbol.RPAR);
+
+                    AppendSymbol(_currentResult);
+                    _currentResult = _tokenizer.Advance()
+                                    .PrintErrorAndExitIfFailed();
                 }
             }
             else if (_currentResult.Expect(Keyword.DO))
