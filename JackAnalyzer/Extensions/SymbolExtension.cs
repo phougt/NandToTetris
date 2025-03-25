@@ -20,10 +20,10 @@ namespace JackAnalyzer.Extensions
                 Symbol.MINUS => "-",
                 Symbol.STAR => "*",
                 Symbol.SLASH => "/",
-                Symbol.AMP => "&",
+                Symbol.AMP => "&amp;",
                 Symbol.PIPE => "|",
-                Symbol.LT => "<",
-                Symbol.GT => ">",
+                Symbol.LT => "&lt;",
+                Symbol.GT => "&gt;",
                 Symbol.EQUAL => "=",
                 Symbol.TILDE => "~",
                 _ => string.Empty
