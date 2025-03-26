@@ -96,6 +96,8 @@ namespace JackAnalyzer.Modules
                     continue;
                 }
 
+                bool startWithSlashAsterisk = tempWord.StartsWith("/*");
+                bool endWithSlashAsterisk = tempWord.EndsWith("*/");
                 bool startWithDigit = char.IsAsciiDigit(tempWord[0]);
                 bool startWithDoubleQuote = tempWord[0].Equals('\"');
                 bool startWithLetterOrUnderscore = char.IsAsciiLetter(tempWord[0]) || tempWord[0].Equals('_');
@@ -103,6 +105,37 @@ namespace JackAnalyzer.Modules
 
                 if (startWithSymbol)
                 {
+                    if (startWithSlashAsterisk)
+                    {
+                        if (tempChar == '*' || tempChar == '/')
+                        {
+                            tempWord += tempChar;
+                            _reader.Read();
+                            continue;
+                        }
+
+                        if (endWithSlashAsterisk)
+                        {
+                            tempWord = string.Empty;
+                            continue;
+                        }
+
+                        _reader.Read();
+                        continue;
+                    }
+                    else if (tempWord[0] == '/' && _reader.Peek() == '*' && !startWithSlashAsterisk)
+                    {
+                        tempWord += tempChar;
+                        continue;
+                    }
+                    else if (tempWord[0] == '/' && _reader.Peek() == '/')
+                    {
+                        _reader.ReadLine();
+                        tempWord = string.Empty;
+                        _lineNumber++;
+                        continue;
+                    }
+
                     return Result.Ok(new Token(TokenType.SYMBOL, tempWord.ToSymbol(), row: _lineNumber, filename: _filepath));
                 }
                 else if (startWithDigit)
