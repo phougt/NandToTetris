@@ -24,7 +24,7 @@ namespace JackAnalyzer.Extensions
         {
             if (token.Value.Type != TokenType.KEYWORD || (Keyword)token.Value.Value != keyword)
             {
-                Console.Error.WriteLine($"Expected '{keyword}' keyword");
+                Console.Error.WriteLine($"[Error] File: {token.Value.Filename}. Expected '{keyword}' keyword. Line: {token.Value.Row}");
                 Environment.Exit(1);
             }
 
@@ -35,7 +35,7 @@ namespace JackAnalyzer.Extensions
         {
             if (token.Value.Type != tokenType)
             {
-                Console.Error.WriteLine($"Expected '{tokenType}' token type");
+                Console.Error.WriteLine($"[Error] File: { token.Value.Filename}. Expected '{tokenType}' token type. Line: {token.Value.Row}");
                 Environment.Exit(1);
             }
 
@@ -46,7 +46,7 @@ namespace JackAnalyzer.Extensions
         {
             if (token.Value.Type != TokenType.SYMBOL || (Symbol)token.Value.Value != symbol)
             {
-                Console.Error.WriteLine($"Expected '{symbol}' symbol");
+                Console.Error.WriteLine($"[Error] File: {token.Value.Filename}. Expected '{symbol}' symbol. Line: {token.Value.Row}");
                 Environment.Exit(1);
             }
 
@@ -74,7 +74,7 @@ namespace JackAnalyzer.Extensions
 
             if (!isType)
             {
-                Console.Error.WriteLine("Expected type");
+                Console.Error.WriteLine($"[Error] File: {token.Value.Filename}. Expected type.  Line: {token.Value.Row}");
                 Environment.Exit(1);
             }
 

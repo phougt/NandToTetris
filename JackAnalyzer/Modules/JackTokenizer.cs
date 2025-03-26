@@ -4,6 +4,7 @@ using FluentResults;
 using System.Collections.Immutable;
 using JackAnalyzer.Errors;
 using JackAnalyzer.Extensions;
+using System.Security.Cryptography;
 
 namespace JackAnalyzer.Modules
 {
@@ -12,9 +13,12 @@ namespace JackAnalyzer.Modules
         private readonly StreamReader _reader;
         private readonly HashSet<char> _validSymbols;
         private readonly HashSet<string> _validKeywords;
+        private uint _lineNumber = 1;
+        private string _filepath = string.Empty;
         public JackTokenizer(string filePath)
         {
             _reader = new StreamReader(filePath);
+            _filepath = filePath;
             _validSymbols = [
                 '{',
                 '}',
@@ -85,6 +89,9 @@ namespace JackAnalyzer.Modules
                     if (!startWithWhiteSpace)
                         tempWord += tempChar;
 
+                    if (tempChar.Equals('\n'))
+                        _lineNumber++;
+
                     _reader.Read();
                     continue;
                 }
@@ -96,13 +103,13 @@ namespace JackAnalyzer.Modules
 
                 if (startWithSymbol)
                 {
-                    return Result.Ok(new Token(TokenType.SYMBOL, tempWord.ToSymbol()));
+                    return Result.Ok(new Token(TokenType.SYMBOL, tempWord.ToSymbol(), row: _lineNumber, filename: _filepath));
                 }
                 else if (startWithDigit)
                 {
                     if (!char.IsAsciiDigit(tempChar))
                     {
-                        return Result.Ok(new Token(TokenType.INT_CONST, int.Parse(tempWord)));
+                        return Result.Ok(new Token(TokenType.INT_CONST, int.Parse(tempWord), row: _lineNumber, filename: _filepath));
                     }
                     else
                     {
@@ -116,7 +123,7 @@ namespace JackAnalyzer.Modules
                     if (tempChar.Equals('\"'))
                     {
                         _reader.Read();
-                        return Result.Ok(new Token(TokenType.STRING_CONST, tempWord.Remove(0, 1)));
+                        return Result.Ok(new Token(TokenType.STRING_CONST, tempWord.Remove(0, 1), row: _lineNumber, filename: _filepath));
                         // .Remove(0, 1) is to remove the first double quote
                     }
                     else if (tempChar.Equals('\n') || tempChar.Equals('\r'))
@@ -144,11 +151,11 @@ namespace JackAnalyzer.Modules
                     {
                         if (_validKeywords.Contains(tempWord))
                         {
-                            return Result.Ok(new Token(TokenType.KEYWORD, Enum.Parse<Keyword>(tempWord.ToUpper())));
+                            return Result.Ok(new Token(TokenType.KEYWORD, Enum.Parse<Keyword>(tempWord.ToUpper()), row: _lineNumber, filename: _filepath));
                         }
                         else
                         {
-                            return Result.Ok(new Token(TokenType.IDENTIFIER, tempWord));
+                            return Result.Ok(new Token(TokenType.IDENTIFIER, tempWord, row: _lineNumber, filename: _filepath));
                         }
                     }
                 }
