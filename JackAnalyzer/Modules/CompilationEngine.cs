@@ -844,12 +844,6 @@ namespace JackAnalyzer.Modules
                                     .PrintErrorAndExitIfFailed();
                 }
             }
-            else if (_currentResult.Expect(Keyword.DO))
-            {
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
-                CompileDo();
-            }
             else if (_currentResult.Expect(Symbol.LPAR))
             {
                 AppendSymbol(_currentResult);
