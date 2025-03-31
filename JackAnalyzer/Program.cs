@@ -12,6 +12,8 @@ namespace JackAnalyzer
     {
         public static void Main(string[] args)
         {
+            Stopwatch stopwatch = new Stopwatch();
+            
             string firstArg = string.Empty;
             string secondArg = string.Empty;
 
@@ -35,17 +37,20 @@ namespace JackAnalyzer
 
             if (!isMultiFilesTranslating)
             {
+                stopwatch.Start();
                 JackTokenizer tokenizer = new JackTokenizer(firstArg);
                 CompilationEngine engine = new CompilationEngine(tokenizer, secondArg);
                 engine.CompileClass();
                 if (engine.TryWriteOutputToFile())
                 {
-                    Console.WriteLine($"Compilation for '{firstArg}' is successful.");
+                    stopwatch.Stop();
+                    long elapsed = stopwatch.ElapsedMilliseconds;
+                    Console.WriteLine($"[Success] Compilation for '{firstArg}' is successful. Took {elapsed} ms to compile.");
                     Environment.Exit(1);
                 }
                 else
                 {
-                    Console.Error.WriteLine($"Compilation for '{firstArg}' is failed.");
+                    Console.Error.WriteLine($"[Error] Compilation for '{firstArg}' is failed.");
                     Environment.Exit(1);
                 }
             }
@@ -56,24 +61,31 @@ namespace JackAnalyzer
                     string[] files = Directory.GetFiles(Environment.CurrentDirectory, "*.jack");
                     foreach (string file in files)
                     {
+                        stopwatch.Start();
                         JackTokenizer tokenizer = new JackTokenizer(file);
                         CompilationEngine engine = new CompilationEngine(tokenizer, file.Replace(".jack", ".xml"));
                         engine.CompileClass();
 
                         if (engine.TryWriteOutputToFile())
                         {
-                            Console.WriteLine($"Compilation for '{file}' is successful.");
+                            stopwatch.Stop();
+                            Console.WriteLine($"[Success] Compilation for '{file}' is successful.");
                         }
                         else
                         {
-                            Console.Error.WriteLine($"Compilation for '{file}' is failed.");
+                            Console.Error.WriteLine($"[Error] Compilation for '{file}' is failed.");
                             Environment.Exit(1);
                         }
                     }
+
+                    stopwatch.Stop();
+                    long elapsed = stopwatch.ElapsedMilliseconds;
+                    Console.WriteLine($"[Success] Compilation is successful. Took {elapsed} ms to compile.");
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
-                    Console.Error.WriteLine("Compilation is failed.");
+                    Console.Error.WriteLine("[Error] Compilation is failed.");
+                    Console.Error.WriteLine(ex.Message);
                     Environment.Exit(1);
                 }
             }
