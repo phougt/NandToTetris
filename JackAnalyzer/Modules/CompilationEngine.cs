@@ -61,7 +61,12 @@ namespace JackAnalyzer.Modules
             return false;
         }
 
-        public void CompileClass()
+        public void CompileClassOrExitIfError() 
+        {
+            CompileClass();
+        }
+
+        private void CompileClass()
         {
             _currentResult = _tokenizer.Advance()
                             .PrintErrorAndExitIfFailed()

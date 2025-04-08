@@ -40,7 +40,7 @@ namespace JackAnalyzer
                 stopwatch.Start();
                 JackTokenizer tokenizer = new JackTokenizer(firstArg);
                 CompilationEngine engine = new CompilationEngine(tokenizer, secondArg);
-                engine.CompileClass();
+                engine.CompileClassOrExitIfError();
                 if (engine.TryWriteOutputToFile())
                 {
                     stopwatch.Stop();
@@ -64,7 +64,7 @@ namespace JackAnalyzer
                         stopwatch.Start();
                         JackTokenizer tokenizer = new JackTokenizer(file);
                         CompilationEngine engine = new CompilationEngine(tokenizer, file.Replace(".jack", ".xml"));
-                        engine.CompileClass();
+                        engine.CompileClassOrExitIfError();
 
                         if (engine.TryWriteOutputToFile())
                         {
