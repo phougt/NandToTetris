@@ -64,6 +64,7 @@ namespace JackAnalyzer.Modules
         public void CompileClassOrExitIfError() 
         {
             CompileClass();
+            _tokenizer.Dispose();
         }
 
         private void CompileClass()
