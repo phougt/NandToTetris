@@ -82,6 +82,7 @@ namespace JackAnalyzer
                         {
                             stopwatch.Stop();
                             Console.WriteLine($"[Success] Compilation for '{file}' is successful.");
+                            engine.Dispose();
                         }
                         else
                         {
