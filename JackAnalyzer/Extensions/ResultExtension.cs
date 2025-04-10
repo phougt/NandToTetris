@@ -1,11 +1,32 @@
 using FluentResults;
 using JackAnalyzer.Enums;
+using JackAnalyzer.Errors;
 using JackAnalyzer.Models;
 namespace JackAnalyzer.Extensions 
 {
     public static class ResultExtension
     {
-        public static Result<Token> PrintErrorAndExitIfFailed (this Result<Token> token)
+        public static SyntaxError CreateTypeExpectedError(this Result<Token> token)
+        {
+            return new SyntaxError { Message = $"[Error] File: {token.Value.Filename}. Expected type. Line: {token.Value.Row}" };
+        }
+
+        public static SyntaxError CreateExpectedError(this Result<Token> token, Keyword keyword)
+        {
+            return new SyntaxError { Message = $"[Error] File: {token.Value.Filename}. Expected '{keyword}' keyword. Line: {token.Value.Row}" };
+        }
+
+        public static SyntaxError CreateExpectedError(this Result<Token> token, TokenType type)
+        {
+            return new SyntaxError { Message = $"[Error] File: { token.Value.Filename}. Expected '{type}' token type. Line: {token.Value.Row}" };
+        }
+
+        public static SyntaxError CreateExpectedError(this Result<Token> token, Symbol symbol)
+        {
+            return new SyntaxError { Message = $"[Error] File: {token.Value.Filename}. Expected '{symbol}' symbol. Line: {token.Value.Row}" };
+        }
+
+        public static void PrintErrorAndExitIfFailed (this Result token)
         {
             if (token.IsFailed)
             {
@@ -16,8 +37,6 @@ namespace JackAnalyzer.Extensions
 
                 Environment.Exit(1);
             }
-
-            return token;
         }
 
         public static Result<Token> ExpectOrExit(this Result<Token> token, Keyword keyword)

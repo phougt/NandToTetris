@@ -5,6 +5,7 @@ using JackAnalyzer.Enums;
 using System.ComponentModel.Design;
 using JackAnalyzer.Errors;
 using System.Diagnostics;
+using JackAnalyzer.Extensions;
 
 namespace JackAnalyzer
 {
@@ -13,7 +14,7 @@ namespace JackAnalyzer
         public static void Main(string[] args)
         {
             Stopwatch stopwatch = new Stopwatch();
-            
+
             string firstArg = string.Empty;
             string secondArg = string.Empty;
 
@@ -40,7 +41,13 @@ namespace JackAnalyzer
                 stopwatch.Start();
                 JackTokenizer tokenizer = new JackTokenizer(firstArg);
                 CompilationEngine engine = new CompilationEngine(tokenizer, secondArg);
-                engine.CompileClassOrExitIfError();
+
+                var compileResult = engine.CompileClass();
+                if (compileResult.IsFailed)
+                {
+                    compileResult.PrintErrorAndExitIfFailed();
+                }
+
                 if (engine.TryWriteOutputToFile())
                 {
                     stopwatch.Stop();
@@ -64,7 +71,12 @@ namespace JackAnalyzer
                         stopwatch.Start();
                         JackTokenizer tokenizer = new JackTokenizer(file);
                         CompilationEngine engine = new CompilationEngine(tokenizer, file.Replace(".jack", ".xml"));
-                        engine.CompileClassOrExitIfError();
+
+                        var compileResult = engine.CompileClass();
+                        if (compileResult.IsFailed)
+                        {
+                            compileResult.PrintErrorAndExitIfFailed();
+                        }
 
                         if (engine.TryWriteOutputToFile())
                         {

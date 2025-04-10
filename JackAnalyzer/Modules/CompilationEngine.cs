@@ -8,10 +8,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Reflection.Metadata.Ecma335;
 
 namespace JackAnalyzer.Modules
 {
-    public class CompilationEngine
+    public class CompilationEngine : IDisposable
     {
         private readonly JackTokenizer _tokenizer;
         private readonly StringBuilder _output;
@@ -61,35 +62,29 @@ namespace JackAnalyzer.Modules
             return false;
         }
 
-        public void CompileClassOrExitIfError() 
+        public Result CompileClass()
         {
-            CompileClass();
-            _tokenizer.Dispose();
-        }
-
-        private void CompileClass()
-        {
-            _currentResult = _tokenizer.Advance()
-                            .PrintErrorAndExitIfFailed()
-                            .ExpectOrExit(Keyword.CLASS);
+            _currentResult = _tokenizer.Advance();
+            if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+            if (!_currentResult.Expect(Keyword.CLASS)) return Result.Fail(_currentResult.CreateExpectedError(Keyword.CLASS));
 
             _output.AppendLine("<class>");
             AppendKeyword(_currentResult);
 
-            _currentResult = _tokenizer.Advance()
-                    .PrintErrorAndExitIfFailed()
-                    .ExpectOrExit(TokenType.IDENTIFIER);
+            _currentResult = _tokenizer.Advance();
+            if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+            if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
             AppendIdentifier(_currentResult);
 
-            _currentResult = _tokenizer.Advance()
-                    .PrintErrorAndExitIfFailed()
-                    .ExpectOrExit(Symbol.LBRACE);
+            _currentResult = _tokenizer.Advance();
+            if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+            if (!_currentResult.Expect(Symbol.LBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LBRACE));
 
             AppendSymbol(_currentResult);
 
-            _currentResult = _tokenizer.Advance()
-                            .PrintErrorAndExitIfFailed();
+            _currentResult = _tokenizer.Advance();
+            if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
             while (_currentResult.Expect(Keyword.STATIC)
                     || _currentResult.Expect(Keyword.FIELD)
@@ -99,23 +94,27 @@ namespace JackAnalyzer.Modules
             {
                 if (_currentResult.Expect(Keyword.STATIC) || _currentResult.Expect(Keyword.FIELD))
                 {
-                    CompileClassVar();
+                    var result = CompileClassVar();
+                    if (result.IsFailed) return result;
                 }
                 else
                 {
-                    CompileSubroutine();
+                    var result = CompileSubroutine();
+                    if (result.IsFailed) return result;
                 }
             }
 
-            _currentResult.PrintErrorAndExitIfFailed()
-                        .ExpectOrExit(Symbol.RBRACE);
+            if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+            if (!_currentResult.Expect(Symbol.RBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RBRACE));
 
             AppendSymbol(_currentResult);
 
             _output.AppendLine("</class>");
+
+            return Result.Ok();
         }
 
-        private void CompileClassVar()
+        private Result CompileClassVar()
         {
             _output.AppendLine("<classVarDec>");
 
@@ -123,9 +122,9 @@ namespace JackAnalyzer.Modules
             {
                 AppendKeyword(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed()
-                                .ExpectTypeOrExit();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.ExpectType()) return Result.Fail(_currentResult.CreateTypeExpectedError());
 
                 if (_currentResult.ExpectBuiltInType())
                 {
@@ -136,43 +135,43 @@ namespace JackAnalyzer.Modules
                     AppendIdentifier(_currentResult);
                 }
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed()
-                                .ExpectOrExit(TokenType.IDENTIFIER);
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
                 AppendIdentifier(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
                 while (_currentResult.Expect(Symbol.COMMA))
                 {
                     AppendSymbol(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed()
-                                    .ExpectOrExit(TokenType.IDENTIFIER);
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                    if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
                     AppendIdentifier(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed();
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 }
 
-                _currentResult.PrintErrorAndExitIfFailed()
-                            .ExpectOrExit(Symbol.SEMICOLON);
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.Expect(Symbol.SEMICOLON)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.SEMICOLON));
 
                 AppendSymbol(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
-
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
 
             _output.AppendLine("</classVarDec>");
+            return Result.Ok();
         }
 
-        private void CompileSubroutine()
+        private Result CompileSubroutine()
         {
             _output.AppendLine("<subroutineDec>");
 
@@ -180,13 +179,12 @@ namespace JackAnalyzer.Modules
             {
                 AppendKeyword(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
                 if (!(_currentResult.Expect(Keyword.VOID) || _currentResult.ExpectType()))
                 {
-                    Console.Error.WriteLine("Expected 'void' or type");
-                    Environment.Exit(1);
+                    return Result.Fail(_currentResult.CreateTypeExpectedError());
                 }
 
                 if (_currentResult.Expect(Keyword.VOID) || _currentResult.ExpectBuiltInType())
@@ -198,66 +196,69 @@ namespace JackAnalyzer.Modules
                     AppendIdentifier(_currentResult);
                 }
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed()
-                                .ExpectOrExit(TokenType.IDENTIFIER);
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
                 AppendIdentifier(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed()
-                                .ExpectOrExit(Symbol.LPAR);
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.Expect(Symbol.LPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LPAR));
 
                 AppendSymbol(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                CompileParameterList();
+                var result = CompileParameterList();
+                if (result.IsFailed) return result;
 
-                _currentResult.PrintErrorAndExitIfFailed()
-                            .ExpectOrExit(Symbol.RPAR);
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
 
                 AppendSymbol(_currentResult);
 
                 _output.AppendLine("<subroutineBody>");
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed()
-                                .ExpectOrExit(Symbol.LBRACE);
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.Expect(Symbol.LBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LBRACE));
 
                 AppendSymbol(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
                 while (_currentResult.Expect(Keyword.VAR) || _currentResult.IsStatements())
                 {
                     if (_currentResult.Expect(Keyword.VAR))
                     {
-                        CompileVarDec();
+                        var temp = CompileVarDec();
+                        if (temp.IsFailed) return temp;
                     }
                     else
                     {
-                        CompileStatements();
+                        var temp = CompileStatements();
+                        if (temp.IsFailed) return temp;
                     }
                 }
 
-                _currentResult.PrintErrorAndExitIfFailed()
-                            .ExpectOrExit(Symbol.RBRACE);
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.Expect(Symbol.RBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RBRACE));
 
                 AppendSymbol(_currentResult);
                 _output.AppendLine("</subroutineBody>");
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
-
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
 
             _output.AppendLine("</subroutineDec>");
+            return Result.Ok();
         }
 
-        private void CompileParameterList()
+        private Result CompileParameterList()
         {
             _output.AppendLine("<parameterList>");
 
@@ -273,22 +274,22 @@ namespace JackAnalyzer.Modules
                     AppendIdentifier(_currentResult);
                 }
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed()
-                                .ExpectOrExit(TokenType.IDENTIFIER);
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
                 AppendIdentifier(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
                 while (_currentResult.Expect(Symbol.COMMA))
                 {
                     AppendSymbol(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed()
-                                    .ExpectTypeOrExit();
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                    if (!_currentResult.ExpectType()) return Result.Fail(_currentResult.CreateTypeExpectedError());
 
                     if (_currentResult.ExpectBuiltInType())
                     {
@@ -299,31 +300,32 @@ namespace JackAnalyzer.Modules
                         AppendIdentifier(_currentResult);
                     }
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed()
-                                    .ExpectOrExit(TokenType.IDENTIFIER);
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                    if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
                     AppendIdentifier(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed();
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 }
 
             }
 
             _output.AppendLine("</parameterList>");
+            return Result.Ok();
         }
 
-        private void CompileVarDec()
+        private Result CompileVarDec()
         {
             _output.AppendLine("<varDec>");
             if (_currentResult.Expect(Keyword.VAR))
             {
                 AppendKeyword(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                            .PrintErrorAndExitIfFailed()
-                            .ExpectTypeOrExit();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.ExpectType()) return Result.Fail(_currentResult.CreateTypeExpectedError());
 
                 if (_currentResult.ExpectBuiltInType())
                 {
@@ -334,43 +336,44 @@ namespace JackAnalyzer.Modules
                     AppendIdentifier(_currentResult);
                 }
 
-                _currentResult = _tokenizer.Advance()
-                            .PrintErrorAndExitIfFailed()
-                            .ExpectOrExit(TokenType.IDENTIFIER);
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
                 AppendIdentifier(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
                 while (_currentResult.Expect(Symbol.COMMA))
                 {
                     AppendSymbol(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed()
-                                    .ExpectOrExit(TokenType.IDENTIFIER);
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                    if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
                     AppendIdentifier(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed();
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 }
 
-                _currentResult.PrintErrorAndExitIfFailed()
-                            .ExpectOrExit(Symbol.SEMICOLON);
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.Expect(Symbol.SEMICOLON)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.SEMICOLON));
 
                 AppendSymbol(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
             }
 
             _output.AppendLine("</varDec>");
+            return Result.Ok();
         }
 
-        private void CompileStatements()
+        private Result CompileStatements()
         {
             _output.AppendLine("<statements>");
 
@@ -389,58 +392,64 @@ namespace JackAnalyzer.Modules
                 {
                     if (_currentResult.Expect(Keyword.LET))
                     {
-                        CompileLet();
+                        var temp = CompileLet();
+                        if (temp.IsFailed) return temp;
                     }
                     else if (_currentResult.Expect(Keyword.DO))
                     {
-                        CompileDo();
+                        var temp = CompileDo();
+                        if (temp.IsFailed) return temp;
                     }
                     else if (_currentResult.Expect(Keyword.IF))
                     {
-                        CompileIf();
+                        var temp = CompileIf();
+                        if (temp.IsFailed) return temp;
                     }
                     else if (_currentResult.Expect(Keyword.WHILE))
                     {
-                        CompileWhile();
+                        var temp = CompileWhile();
+                        if (temp.IsFailed) return temp;
                     }
                     else
                     {
-                        CompileReturn();
+                        var temp = CompileReturn();
+                        if (temp.IsFailed) return temp;
                     }
                 }
-
             }
 
             _output.AppendLine("</statements>");
+            return Result.Ok();
         }
 
-        private void CompileDo()
+        private Result CompileDo()
         {
             _output.AppendLine("<doStatement>");
             if (_currentResult.Expect(Keyword.DO))
             {
                 AppendKeyword(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed()
-                                .ExpectOrExit(TokenType.IDENTIFIER);
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
                 AppendIdentifier(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
                 if (_currentResult.Expect(Symbol.LPAR))
                 {
                     AppendSymbol(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed();
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                    CompileExpressionList();
+                    var temp = CompileExpressionList();
+                    if (temp.IsFailed) return temp;
 
-                    _currentResult.PrintErrorAndExitIfFailed()
-                                .ExpectOrExit(Symbol.RPAR);
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                    if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
 
                     AppendSymbol(_currentResult);
                 }
@@ -448,43 +457,45 @@ namespace JackAnalyzer.Modules
                 {
                     AppendSymbol(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed()
-                                    .ExpectOrExit(TokenType.IDENTIFIER);
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                    if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
                     AppendIdentifier(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed()
-                                    .ExpectOrExit(Symbol.LPAR);
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                    if (!_currentResult.Expect(Symbol.LPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LPAR));
 
                     AppendSymbol(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed();
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                    CompileExpressionList();
+                    var temp = CompileExpressionList();
+                    if (temp.IsFailed) return temp;
 
-                    _currentResult.PrintErrorAndExitIfFailed()
-                                .ExpectOrExit(Symbol.RPAR);
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                    if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
 
                     AppendSymbol(_currentResult);
                 }
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed()
-                                .ExpectOrExit(Symbol.SEMICOLON);
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.Expect(Symbol.SEMICOLON)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.SEMICOLON));
 
                 AppendSymbol(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
 
             _output.AppendLine("</doStatement>");
+            return Result.Ok();
         }
 
-        private void CompileLet()
+        private Result CompileLet()
         {
             _output.AppendLine("<letStatement>");
 
@@ -492,56 +503,59 @@ namespace JackAnalyzer.Modules
             {
                 AppendKeyword(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed()
-                                .ExpectOrExit(TokenType.IDENTIFIER);
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
                 AppendIdentifier(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
                 if (_currentResult.Expect(Symbol.LBRACK))
                 {
                     AppendSymbol(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed();
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                    CompileExpression();
+                    var tmp = CompileExpression();
+                    if (tmp.IsFailed) return tmp;
 
-                    _currentResult.PrintErrorAndExitIfFailed()
-                                .ExpectOrExit(Symbol.RBRACK);
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                    if (!_currentResult.Expect(Symbol.RBRACK)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RBRACK));
 
                     AppendSymbol(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed();
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 }
 
-                _currentResult.PrintErrorAndExitIfFailed()
-                            .ExpectOrExit(Symbol.EQUAL);
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.Expect(Symbol.EQUAL)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.EQUAL));
 
                 AppendSymbol(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                CompileExpression();
+                var temp = CompileExpression();
+                if (temp.IsFailed) return temp;
 
-                _currentResult.PrintErrorAndExitIfFailed()
-                            .ExpectOrExit(Symbol.SEMICOLON);
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.Expect(Symbol.SEMICOLON)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.SEMICOLON));
 
                 AppendSymbol(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
 
             _output.AppendLine("</letStatement>");
+            return Result.Ok();
         }
 
-        private void CompileWhile()
+        private Result CompileWhile()
         {
             _output.AppendLine("<whileStatement>");
 
@@ -549,46 +563,47 @@ namespace JackAnalyzer.Modules
             {
                 AppendKeyword(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed()
-                                .ExpectOrExit(Symbol.LPAR);
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.Expect(Symbol.LPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LPAR));
 
                 AppendSymbol(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                CompileExpression();
+                var expressionResult = CompileExpression();
+                if (expressionResult.IsFailed) return expressionResult;
 
-                _currentResult.PrintErrorAndExitIfFailed()
-                            .ExpectOrExit(Symbol.RPAR);
-
-                AppendSymbol(_currentResult);
-
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed()
-                                .ExpectOrExit(Symbol.LBRACE);
+                if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
 
                 AppendSymbol(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
-
-                CompileStatements();
-
-                _currentResult.PrintErrorAndExitIfFailed()
-                            .ExpectOrExit(Symbol.RBRACE);
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.Expect(Symbol.LBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LBRACE));
 
                 AppendSymbol(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+
+                var statementsResult = CompileStatements();
+                if (statementsResult.IsFailed) return statementsResult;
+
+                if (!_currentResult.Expect(Symbol.RBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RBRACE));
+
+                AppendSymbol(_currentResult);
+
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
 
             _output.AppendLine("</whileStatement>");
+            return Result.Ok();
         }
 
-        private void CompileReturn()
+        private Result CompileReturn()
         {
             _output.AppendLine("<returnStatement>");
 
@@ -596,27 +611,28 @@ namespace JackAnalyzer.Modules
             {
                 AppendKeyword(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
                 if (!_currentResult.Expect(Symbol.SEMICOLON))
                 {
-                    CompileExpression();
+                    var expressionResult = CompileExpression();
+                    if (expressionResult.IsFailed) return expressionResult;
                 }
 
-                _currentResult.PrintErrorAndExitIfFailed()
-                            .ExpectOrExit(Symbol.SEMICOLON);
+                if (!_currentResult.Expect(Symbol.SEMICOLON)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.SEMICOLON));
 
                 AppendSymbol(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
 
             _output.AppendLine("</returnStatement>");
+            return Result.Ok();
         }
 
-        private void CompileIf()
+        private Result CompileIf()
         {
             _output.AppendLine("<ifStatement>");
 
@@ -624,270 +640,246 @@ namespace JackAnalyzer.Modules
             {
                 AppendKeyword(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed()
-                                .ExpectOrExit(Symbol.LPAR);
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.Expect(Symbol.LPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LPAR));
 
                 AppendSymbol(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                if (!_currentResult.IsTerm())
-                {
-                    Console.Error.WriteLine("Expected expression");
-                    Environment.Exit(1);
-                }
+                var expressionResult = CompileExpression();
+                if (expressionResult.IsFailed) return expressionResult;
 
-                CompileExpression();
-
-                _currentResult.PrintErrorAndExitIfFailed()
-                            .ExpectOrExit(Symbol.RPAR);
+                if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
 
                 AppendSymbol(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed()
-                                .ExpectOrExit(Symbol.LBRACE);
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                if (!_currentResult.Expect(Symbol.LBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LBRACE));
 
                 AppendSymbol(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                _output.AppendLine("<statements>");
+                var statementsResult = CompileStatements();
+                if (statementsResult.IsFailed) return statementsResult;
 
-                while (_currentResult.IsStatements())
-                {
-
-                    if (_currentResult.Expect(Keyword.LET))
-                    {
-                        CompileLet();
-                    }
-                    else if (_currentResult.Expect(Keyword.DO))
-                    {
-                        CompileDo();
-                    }
-                    else if (_currentResult.Expect(Keyword.IF))
-                    {
-                        CompileIf();
-                    }
-                    else if (_currentResult.Expect(Keyword.WHILE))
-                    {
-                        CompileWhile();
-                    }
-                    else if (_currentResult.Expect(Keyword.RETURN))
-                    {
-                        CompileReturn();
-                    }
-                }
-
-                _output.AppendLine("</statements>");
-
-                _currentResult.PrintErrorAndExitIfFailed()
-                            .ExpectOrExit(Symbol.RBRACE);
+                if (!_currentResult.Expect(Symbol.RBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RBRACE));
 
                 AppendSymbol(_currentResult);
 
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
                 if (_currentResult.Expect(Keyword.ELSE))
                 {
                     AppendKeyword(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed()
-                                    .ExpectOrExit(Symbol.LBRACE);
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                    if (!_currentResult.Expect(Symbol.LBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LBRACE));
 
                     AppendSymbol(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed();
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                    CompileStatements();
+                    var elseStatementsResult = CompileStatements();
+                    if (elseStatementsResult.IsFailed) return elseStatementsResult;
 
-                    _currentResult.PrintErrorAndExitIfFailed()
-                                .ExpectOrExit(Symbol.RBRACE);
+                    if (!_currentResult.Expect(Symbol.RBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RBRACE));
 
                     AppendSymbol(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed();
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 }
             }
 
             _output.AppendLine("</ifStatement>");
+            return Result.Ok();
         }
 
-        private void CompileExpression()
+        private Result CompileExpression()
         {
             _output.AppendLine("<expression>");
+
             if (_currentResult.IsTerm())
             {
-                CompileTerm();
+                var termResult = CompileTerm();
+                if (termResult.IsFailed) return termResult;
 
                 while (_currentResult.IsUnaryOperator())
                 {
                     AppendSymbol(_currentResult);
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed();
 
-                    if (!_currentResult.IsTerm())
-                    {
-                        Console.Error.WriteLine("Expected term");
-                        Environment.Exit(1);
-                    }
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                    CompileTerm();
+                    if (!_currentResult.IsTerm()) return Result.Fail(new SyntaxError { Message = "Expected term." });
+
+                    var nextTermResult = CompileTerm();
+                    if (nextTermResult.IsFailed) return nextTermResult;
                 }
             }
 
             _output.AppendLine("</expression>");
+            return Result.Ok();
         }
 
-        private void CompileTerm()
+        private Result CompileTerm()
         {
             _output.AppendLine("<term>");
 
-            if (!_currentResult.IsTerm())
-            {
-                return;
-            }
+            if (!_currentResult.IsTerm()) return Result.Fail(new SyntaxError { Message = "Expected term." });
 
             if (_currentResult.IsKeywordConstant())
             {
                 AppendKeyword(_currentResult);
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
             else if (_currentResult.IsUnaryOperator())
             {
                 AppendSymbol(_currentResult);
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                if (!_currentResult.IsTerm())
-                {
-                    Console.Error.WriteLine("Expected term");
-                    Environment.Exit(1);
-                }
+                if (!_currentResult.IsTerm()) return Result.Fail(new SyntaxError { Message = "Expected term." });
 
-                CompileTerm();
+                var unaryTermResult = CompileTerm();
+                if (unaryTermResult.IsFailed) return unaryTermResult;
             }
             else if (_currentResult.Expect(TokenType.INT_CONST))
             {
                 AppendIntConstant(_currentResult);
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
             else if (_currentResult.Expect(TokenType.STRING_CONST))
             {
                 AppendStringConstant(_currentResult);
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
             else if (_currentResult.Expect(TokenType.IDENTIFIER))
             {
                 AppendIdentifier(_currentResult);
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
                 if (_currentResult.Expect(Symbol.LBRACK))
                 {
                     AppendSymbol(_currentResult);
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed();
-                    CompileExpression();
-                    _currentResult.PrintErrorAndExitIfFailed()
-                                .ExpectOrExit(Symbol.RBRACK);
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+
+                    var expressionResult = CompileExpression();
+                    if (expressionResult.IsFailed) return expressionResult;
+
+                    if (!_currentResult.Expect(Symbol.RBRACK)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RBRACK));
+
                     AppendSymbol(_currentResult);
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed();
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 }
                 else if (_currentResult.Expect(Symbol.LPAR))
                 {
                     AppendSymbol(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed();
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                    CompileExpressionList();
+                    var expressionListResult = CompileExpressionList();
+                    if (expressionListResult.IsFailed) return expressionListResult;
 
-                    _currentResult.PrintErrorAndExitIfFailed()
-                                .ExpectOrExit(Symbol.RPAR);
+                    if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
 
                     AppendSymbol(_currentResult);
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed();
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 }
                 else if (_currentResult.Expect(Symbol.DOT))
                 {
                     AppendSymbol(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed()
-                                    .ExpectOrExit(TokenType.IDENTIFIER);
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                    if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
                     AppendIdentifier(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed()
-                                    .ExpectOrExit(Symbol.LPAR);
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                    if (!_currentResult.Expect(Symbol.LPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LPAR));
 
                     AppendSymbol(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed();
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                    CompileExpressionList();
+                    var expressionListResult = CompileExpressionList();
+                    if (expressionListResult.IsFailed) return expressionListResult;
 
-                    _currentResult.PrintErrorAndExitIfFailed()
-                                .ExpectOrExit(Symbol.RPAR);
+                    if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
 
                     AppendSymbol(_currentResult);
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed();
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 }
             }
             else if (_currentResult.Expect(Symbol.LPAR))
             {
                 AppendSymbol(_currentResult);
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                CompileExpression();
+                var expressionResult = CompileExpression();
+                if (expressionResult.IsFailed) return expressionResult;
 
-                _currentResult.PrintErrorAndExitIfFailed()
-                            .ExpectOrExit(Symbol.RPAR);
+                if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
 
                 AppendSymbol(_currentResult);
-                _currentResult = _tokenizer.Advance()
-                                .PrintErrorAndExitIfFailed();
+                _currentResult = _tokenizer.Advance();
+                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
 
             _output.AppendLine("</term>");
+            return Result.Ok();
         }
 
-        private void CompileExpressionList()
+        private Result CompileExpressionList()
         {
             _output.AppendLine("<expressionList>");
+
             if (_currentResult.IsTerm())
             {
-                CompileExpression();
+                var expressionResult = CompileExpression();
+                if (expressionResult.IsFailed) return expressionResult;
 
                 while (_currentResult.Expect(Symbol.COMMA))
                 {
                     AppendSymbol(_currentResult);
 
-                    _currentResult = _tokenizer.Advance()
-                                    .PrintErrorAndExitIfFailed();
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                    CompileExpression();
+                    expressionResult = CompileExpression();
+                    if (expressionResult.IsFailed) return expressionResult;
                 }
             }
 
             _output.AppendLine("</expressionList>");
+            return Result.Ok();
+        }
+
+        public void Dispose() 
+        {
+            _tokenizer.Dispose();
         }
 
         private void AppendKeyword(Result<Token> token)
