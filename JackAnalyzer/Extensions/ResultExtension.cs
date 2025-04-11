@@ -23,7 +23,7 @@ namespace JackAnalyzer.Extensions
 
         public static SyntaxError CreateExpectedError(this Result<Token> token, Symbol symbol)
         {
-            return new SyntaxError { Message = $"[Error] File: {token.Value.Filename}. Expected '{symbol}' symbol. Line: {token.Value.Row}" };
+            return new SyntaxError { Message = $"[Error] File: {token.Value.Filename}. Expected '{symbol.ToSymbolString()}' symbol. Line: {token.Value.Row}" };
         }
 
         public static void PrintErrorAndExitIfFailed (this Result token)
@@ -32,6 +32,7 @@ namespace JackAnalyzer.Extensions
             {
                 foreach (var error in token.Errors)
                 {
+                    Console.Error.WriteLine(error.ToString());
                     Console.Error.WriteLine(error.Message);
                 }
 
