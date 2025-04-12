@@ -57,7 +57,7 @@ namespace JackAnalyzer
                 }
                 else
                 {
-                    Console.Error.WriteLine($"[Error] Compilation for '{firstArg}' is failed.");
+                    Console.Error.WriteLine($"[Error] Compilation for '{firstArg}' failed.");
                     Environment.Exit(1);
                 }
             }
@@ -86,7 +86,7 @@ namespace JackAnalyzer
                         }
                         else
                         {
-                            Console.Error.WriteLine($"[Error] Compilation for '{file}' is failed.");
+                            Console.Error.WriteLine($"[Error] Compilation for '{file}' failed.");
                             Environment.Exit(1);
                         }
                     }
@@ -97,7 +97,7 @@ namespace JackAnalyzer
                 }
                 catch (Exception ex)
                 {
-                    Console.Error.WriteLine("[Error] Compilation is failed.");
+                    Console.Error.WriteLine("[Error] Compilation failed.");
                     Console.Error.WriteLine(ex.Message);
                     Environment.Exit(1);
                 }
