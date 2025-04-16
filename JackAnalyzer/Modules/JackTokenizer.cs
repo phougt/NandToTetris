@@ -72,7 +72,7 @@ namespace JackAnalyzer.Modules
 
             if (!hasMoreChars)
             {
-                return Result.Fail(new EndOfStreamError { Message = "End of Stream!" });
+                return Result.Fail(new EndOfStreamError { Message = $"End of Stream!. Line: {_lineNumber}" });
             }
 
             string tempWord = string.Empty;
@@ -107,10 +107,23 @@ namespace JackAnalyzer.Modules
                 {
                     if (startWithSlashAsterisk)
                     {
-                        if (tempChar == '*' || tempChar == '/')
+                        if (tempChar == '\n')
                         {
-                            tempWord += tempChar;
+                            _lineNumber++;
                             _reader.Read();
+                            continue;
+                        }
+
+                        if (tempChar == '*')
+                        {
+                            _reader.Read();
+
+                            if (_reader.Peek() == '/')
+                            {
+                                tempWord += '*';
+                                tempWord += (char)_reader.Read();
+                            }
+
                             continue;
                         }
 
@@ -161,7 +174,7 @@ namespace JackAnalyzer.Modules
                     }
                     else if (tempChar.Equals('\n') || tempChar.Equals('\r'))
                     {
-                        return Result.Fail(new InvalidCharError { Message = "Illegal newline char in string literal." });
+                        return Result.Fail(new InvalidCharError { Message = $"Illegal newline char in string literal. Line: {_lineNumber}" });
                     }
                     else
                     {
@@ -194,7 +207,7 @@ namespace JackAnalyzer.Modules
                 }
             }
 
-            return Result.Fail(new EndOfStreamError { Message = "End of stream!" });
+            return Result.Fail(new EndOfStreamError { Message = $"End of Stream!. Line: {_lineNumber}" });
         }
 
         public void Dispose()
