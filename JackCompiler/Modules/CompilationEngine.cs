@@ -58,21 +58,18 @@ namespace JackCompiler.Modules
             if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
             while (_currentResult.Expect(Keyword.STATIC)
-                    || _currentResult.Expect(Keyword.FIELD)
-                    || _currentResult.Expect(Keyword.CONSTRUCTOR)
-                    || _currentResult.Expect(Keyword.FUNCTION)
-                    || _currentResult.Expect(Keyword.METHOD))
+                   || _currentResult.Expect(Keyword.FIELD))
             {
-                if (_currentResult.Expect(Keyword.STATIC) || _currentResult.Expect(Keyword.FIELD))
-                {
-                    var result = CompileClassVar();
-                    if (result.IsFailed) return result;
-                }
-                else
-                {
-                    var result = CompileSubroutine();
-                    if (result.IsFailed) return result;
-                }
+                var result = CompileClassVar();
+                if (result.IsFailed) return result;
+            }
+
+            while (_currentResult.Expect(Keyword.CONSTRUCTOR)
+                   || _currentResult.Expect(Keyword.FUNCTION)
+                   || _currentResult.Expect(Keyword.METHOD))
+            {
+                var result = CompileSubroutine();
+                if (result.IsFailed) return result;
             }
 
             if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
@@ -98,9 +95,9 @@ namespace JackCompiler.Modules
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
-                _classScopeTable.Define((string)_currentResult.Value.Value
-                                        , type
-                                        , kind);
+                _classScopeTable.Define((string)_currentResult.Value.Value,
+                                        type,
+                                        kind);
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
@@ -111,9 +108,9 @@ namespace JackCompiler.Modules
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                     if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
-                    _classScopeTable.Define((string)_currentResult.Value.Value
-                                            , type
-                                            , kind);
+                    _classScopeTable.Define((string)_currentResult.Value.Value,
+                                            type,
+                                            kind);
 
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
@@ -388,6 +385,14 @@ namespace JackCompiler.Modules
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
+                    if (subroutineScopeIndex != -1 || classScopeIndex != -1)
+                    {
+                        if (subroutineScopeIndex != -1)
+                            _vmWriter.WritePush(_subroutineScopeTable.KindOf(tempIdentifier).ToSegment(), subroutineScopeIndex);
+                        else if (classScopeIndex != -1)
+                            _vmWriter.WritePush(_classScopeTable.KindOf(tempIdentifier).ToSegment(), classScopeIndex);
+                    }
+
                     Result<int> expressionListResult = CompileExpressionList();
                     if (expressionListResult.IsFailed) return expressionListResult.ToResult();
                     int argumentCount = expressionListResult.Value;
@@ -395,26 +400,16 @@ namespace JackCompiler.Modules
                     if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
 
                     if (subroutineScopeIndex == -1 && classScopeIndex == -1)
-                    {
                         _vmWriter.WriteCall($"{tempIdentifier}.{subroutineName}", argumentCount);
-                    }
                     else if (subroutineScopeIndex != -1)
-                    {
-                        _vmWriter.WritePush(_subroutineScopeTable.KindOf(tempIdentifier).ToSegment(), subroutineScopeIndex);
                         _vmWriter.WriteCall($"{_subroutineScopeTable.TypeOf(tempIdentifier)}.{subroutineName}", argumentCount + 1);
-                    }
                     else if (classScopeIndex != -1)
-                    {
-                        _vmWriter.WritePush(_classScopeTable.KindOf(tempIdentifier).ToSegment(), classScopeIndex);
                         _vmWriter.WriteCall($"{_classScopeTable.TypeOf(tempIdentifier)}.{subroutineName}", argumentCount + 1);
-                    }
                     else
-                    {
                         return Result.Fail(new SemanticError
                         {
                             Message = $"[Error] File: {_currentResult.Value.Filename}. '{tempIdentifier}' is undefined in this context.  Line: {_currentResult.Value.Row}"
                         });
-                    }
                 }
 
                 _currentResult = _tokenizer.Advance();
@@ -847,6 +842,14 @@ namespace JackCompiler.Modules
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
+                    if (subroutineScopeIndex != -1 || classScopeIndex != -1)
+                    {
+                        if (subroutineScopeIndex != -1)
+                            _vmWriter.WritePush(_subroutineScopeTable.KindOf(identifier).ToSegment(), subroutineScopeIndex);
+                        else if (classScopeIndex != -1)
+                            _vmWriter.WritePush(_classScopeTable.KindOf(identifier).ToSegment(), classScopeIndex);
+                    }
+
                     Result<int> expressionListResult = CompileExpressionList();
                     if (expressionListResult.IsFailed) return expressionListResult.ToResult();
                     int argumentCount = expressionListResult.Value;
@@ -859,11 +862,11 @@ namespace JackCompiler.Modules
                     }
                     else if (subroutineScopeIndex != -1)
                     {
-                        _vmWriter.WriteCall($"{_subroutineScopeTable.TypeOf(identifier)}.{subroutineName}", argumentCount);
+                        _vmWriter.WriteCall($"{_subroutineScopeTable.TypeOf(identifier)}.{subroutineName}", argumentCount + 1);
                     }
                     else if (classScopeIndex != -1)
                     {
-                        _vmWriter.WriteCall($"{_classScopeTable.TypeOf(identifier)}.{subroutineName}", argumentCount);
+                        _vmWriter.WriteCall($"{_classScopeTable.TypeOf(identifier)}.{subroutineName}", argumentCount + 1);
                     }
                     else
                     {
