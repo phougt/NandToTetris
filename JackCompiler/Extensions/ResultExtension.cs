@@ -140,7 +140,7 @@ namespace JackCompiler.Extensions
                 || token.Expect(Keyword.THIS);
         }
 
-        public static bool IsUnaryOperator(this Result<Token> token)
+        public static bool IsOperator(this Result<Token> token)
         {
             return token.Expect(Symbol.MINUS)
                 || token.Expect(Symbol.PLUS)
@@ -150,7 +150,12 @@ namespace JackCompiler.Extensions
                 || token.Expect(Symbol.PIPE)
                 || token.Expect(Symbol.LT)
                 || token.Expect(Symbol.GT)
-                || token.Expect(Symbol.EQUAL)
+                || token.Expect(Symbol.EQUAL);
+        }
+
+        public static bool IsUnaryOperator(this Result<Token> token)
+        {
+            return token.Expect(Symbol.MINUS)
                 || token.Expect(Symbol.TILDE);
         }
 

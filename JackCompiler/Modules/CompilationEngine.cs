@@ -98,7 +98,7 @@ namespace JackCompiler.Modules
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
-                _classScopeTable.Define(((Keyword)_currentResult.Value.Value).ToString()
+                _classScopeTable.Define((string)_currentResult.Value.Value
                                         , type
                                         , kind);
 
@@ -111,7 +111,7 @@ namespace JackCompiler.Modules
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                     if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
-                    _classScopeTable.Define(((Keyword)_currentResult.Value.Value).ToString()
+                    _classScopeTable.Define((string)_currentResult.Value.Value
                                             , type
                                             , kind);
 
@@ -133,12 +133,12 @@ namespace JackCompiler.Modules
         {
             if (_currentResult.Expect(Keyword.CONSTRUCTOR) || _currentResult.Expect(Keyword.FUNCTION) || _currentResult.Expect(Keyword.METHOD))
             {
-                if (_currentResult.Expect(Keyword.METHOD))
-                {
+                Result<Token> functionKind = _currentResult;
+
+                if (functionKind.Expect(Keyword.METHOD))
                     _subroutineScopeTable.Define("this", _currentClassname, Kind.ARGUMENT);
-                    _vmWriter.WritePush(Segment.ARGUMENT, _subroutineScopeTable.IndexOf("this"));
-                    _vmWriter.WritePop(Segment.POINTER, 0);
-                }
+                else if (functionKind.Expect(Keyword.CONSTRUCTOR))
+                    _subroutineScopeTable.Define("this", _currentClassname, Kind.NONE);
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
@@ -185,6 +185,18 @@ namespace JackCompiler.Modules
 
                 _vmWriter.WriteFunction($"{_currentClassname}.{subroutineName}", localVariableCount);
 
+                if (functionKind.Expect(Keyword.METHOD))
+                {
+                    _vmWriter.WritePush(Segment.ARGUMENT, _subroutineScopeTable.IndexOf("this"));
+                    _vmWriter.WritePop(Segment.POINTER, 0);
+                }
+                else if (functionKind.Expect(Keyword.CONSTRUCTOR))
+                {
+                    _vmWriter.WritePush(Segment.CONSTANT, _classScopeTable.VarCount(Kind.FIELD));
+                    _vmWriter.WriteCall($"Memory.alloc", 1);
+                    _vmWriter.WritePop(Segment.POINTER, 0);
+                }
+
                 while (_currentResult.IsStatement())
                 {
                     var resultVarDec = CompileStatements();
@@ -212,7 +224,7 @@ namespace JackCompiler.Modules
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
-                _subroutineScopeTable.Define(((Keyword)_currentResult.Value.Value).ToString()
+                _subroutineScopeTable.Define((string)_currentResult.Value.Value
                                             , type
                                             , Kind.ARGUMENT);
 
@@ -231,8 +243,8 @@ namespace JackCompiler.Modules
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                     if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
-                    _subroutineScopeTable.Define(((Keyword)_currentResult.Value.Value).ToString()
-                                            , type
+                    _subroutineScopeTable.Define((string)_currentResult.Value.Value
+                                            , tempType
                                             , Kind.ARGUMENT);
 
                     _currentResult = _tokenizer.Advance();
@@ -348,11 +360,12 @@ namespace JackCompiler.Modules
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
+                    _vmWriter.WritePush(Segment.POINTER, 0);
                     var temp = CompileExpressionList();
                     if (temp.IsFailed) return temp.ToResult();
 
                     int argumentCount = temp.Value;
-                    _vmWriter.WriteCall($"{_currentClassname}.{tempIdentifier}", argumentCount);
+                    _vmWriter.WriteCall($"{_currentClassname}.{tempIdentifier}", argumentCount + 1);
 
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                     if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
@@ -387,11 +400,13 @@ namespace JackCompiler.Modules
                     }
                     else if (subroutineScopeIndex != -1)
                     {
-                        _vmWriter.WriteCall($"{_subroutineScopeTable.TypeOf(tempIdentifier)}.{subroutineName}", argumentCount);
+                        _vmWriter.WritePush(_subroutineScopeTable.KindOf(tempIdentifier).ToSegment(), subroutineScopeIndex);
+                        _vmWriter.WriteCall($"{_subroutineScopeTable.TypeOf(tempIdentifier)}.{subroutineName}", argumentCount + 1);
                     }
                     else if (classScopeIndex != -1)
                     {
-                        _vmWriter.WriteCall($"{_classScopeTable.TypeOf(tempIdentifier)}.{subroutineName}", argumentCount);
+                        _vmWriter.WritePush(_classScopeTable.KindOf(tempIdentifier).ToSegment(), classScopeIndex);
+                        _vmWriter.WriteCall($"{_classScopeTable.TypeOf(tempIdentifier)}.{subroutineName}", argumentCount + 1);
                     }
                     else
                     {
@@ -452,7 +467,7 @@ namespace JackCompiler.Modules
                     if (tmp.IsFailed) return tmp;
 
                     _vmWriter.WriteArithmetic(Command.ADD);
-                    _vmWriter.WritePop(Segment.TEMP, 0);
+                    _vmWriter.WritePop(Segment.TEMP, 4);
 
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                     if (!_currentResult.Expect(Symbol.RBRACK)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RBRACK));
@@ -469,10 +484,9 @@ namespace JackCompiler.Modules
                     var temp = CompileExpression();
                     if (temp.IsFailed) return temp;
 
-                    _vmWriter.WritePush(Segment.TEMP, 0);
+                    _vmWriter.WritePush(Segment.TEMP, 4);
                     _vmWriter.WritePop(Segment.POINTER, 1);
                     _vmWriter.WritePop(Segment.THAT, 0);
-
                 }
                 else
                 {
@@ -515,11 +529,11 @@ namespace JackCompiler.Modules
                 int whileCounter = _generalPurposeCounter;
                 _generalPurposeCounter++;
 
-                _vmWriter.WriteLabel($"WHILE_CONDITION_{_generalPurposeCounter}");
+                _vmWriter.WriteLabel($"WHILE_CONDITION_{whileCounter}");
                 var expressionResult = CompileExpression();
                 if (expressionResult.IsFailed) return expressionResult;
 
-                _vmWriter.WriteArithmetic(Command.NEG);
+                _vmWriter.WriteArithmetic(Command.NOT);
                 _vmWriter.WriteIf($"WHILE_END_{whileCounter}");
 
                 if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
@@ -533,7 +547,7 @@ namespace JackCompiler.Modules
 
                 var statementsResult = CompileStatements();
                 if (statementsResult.IsFailed) return statementsResult;
-                _vmWriter.WriteGoto($"WHILE_CONDITION_{_generalPurposeCounter}");
+                _vmWriter.WriteGoto($"WHILE_CONDITION_{whileCounter}");
 
                 if (!_currentResult.Expect(Symbol.RBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RBRACE));
                 _vmWriter.WriteLabel($"WHILE_END_{whileCounter}");
@@ -597,17 +611,19 @@ namespace JackCompiler.Modules
 
                 int ifElseCounter = _generalPurposeCounter;
 
-                _vmWriter.WriteArithmetic(Command.NEG);
+                _vmWriter.WriteArithmetic(Command.NOT);
                 _vmWriter.WriteIf($"ELSE_{ifElseCounter}");
                 _generalPurposeCounter++;
                 var statementsResult = CompileStatements();
                 if (statementsResult.IsFailed) return statementsResult;
+                _vmWriter.WriteGoto($"END_IF_{ifElseCounter}");
 
                 if (!_currentResult.Expect(Symbol.RBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RBRACE));
-                _vmWriter.WriteGoto($"END_IF_ELSE_{ifElseCounter}");
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+
+                _vmWriter.WriteLabel($"ELSE_{ifElseCounter}");
 
                 if (_currentResult.Expect(Keyword.ELSE))
                 {
@@ -618,7 +634,6 @@ namespace JackCompiler.Modules
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                    _vmWriter.WriteGoto($"ELSE_{ifElseCounter}");
                     var elseStatementsResult = CompileStatements();
                     if (elseStatementsResult.IsFailed) return elseStatementsResult;
 
@@ -628,7 +643,7 @@ namespace JackCompiler.Modules
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 }
 
-                _vmWriter.WriteLabel($"END_IF_ELSE_{ifElseCounter}");
+                _vmWriter.WriteLabel($"END_IF_{ifElseCounter}");
             }
 
             return Result.Ok();
@@ -641,15 +656,50 @@ namespace JackCompiler.Modules
                 var termResult = CompileTerm();
                 if (termResult.IsFailed) return termResult;
 
-                while (_currentResult.IsUnaryOperator())
+                while (_currentResult.IsOperator())
                 {
+                    Result<Token> tempOperator = _currentResult;
+
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
-
                     if (!_currentResult.IsTerm()) return Result.Fail(new SyntaxError { Message = "Expected term." });
 
                     var nextTermResult = CompileTerm();
                     if (nextTermResult.IsFailed) return nextTermResult;
+
+                    switch ((Symbol)tempOperator.Value.Value)
+                    {
+                        case Symbol.MINUS:
+                            _vmWriter.WriteArithmetic(Command.SUB);
+                            break;
+                        case Symbol.PLUS:
+                            _vmWriter.WriteArithmetic(Command.ADD);
+                            break;
+                        case Symbol.AMP:
+                            _vmWriter.WriteArithmetic(Command.AND);
+                            break;
+                        case Symbol.PIPE:
+                            _vmWriter.WriteArithmetic(Command.OR);
+                            break;
+                        case Symbol.LT:
+                            _vmWriter.WriteArithmetic(Command.LT);
+                            break;
+                        case Symbol.GT:
+                            _vmWriter.WriteArithmetic(Command.GT);
+                            break;
+                        case Symbol.EQUAL:
+                            _vmWriter.WriteArithmetic(Command.EQ);
+                            break;
+                        case Symbol.TILDE:
+                            _vmWriter.WriteArithmetic(Command.NOT);
+                            break;
+                        case Symbol.STAR:
+                            _vmWriter.WriteCall($"Math.multiply", 2);
+                            break;
+                        case Symbol.SLASH:
+                            _vmWriter.WriteCall($"Math.divide", 2);
+                            break;
+                    }
                 }
             }
 
@@ -676,8 +726,8 @@ namespace JackCompiler.Modules
                         break;
                     case Keyword.THIS:
                         int thisIndex = _subroutineScopeTable.IndexOf("this");
-                        if (thisIndex == -1)
-                            _vmWriter.WritePush(Segment.ARGUMENT, thisIndex);
+                        if (thisIndex != -1)
+                            _vmWriter.WritePush(Segment.POINTER, 0);
                         else
                             return Result.Fail(
                                     new SemanticError
@@ -703,34 +753,10 @@ namespace JackCompiler.Modules
                 switch ((Symbol)unaryOperator.Value.Value)
                 {
                     case Symbol.MINUS:
-                        _vmWriter.WriteArithmetic(Command.SUB);
-                        break;
-                    case Symbol.PLUS:
-                        _vmWriter.WriteArithmetic(Command.ADD);
-                        break;
-                    case Symbol.AMP:
-                        _vmWriter.WriteArithmetic(Command.AND);
-                        break;
-                    case Symbol.PIPE:
-                        _vmWriter.WriteArithmetic(Command.OR);
-                        break;
-                    case Symbol.LT:
-                        _vmWriter.WriteArithmetic(Command.LT);
-                        break;
-                    case Symbol.GT:
-                        _vmWriter.WriteArithmetic(Command.GT);
-                        break;
-                    case Symbol.EQUAL:
-                        _vmWriter.WriteArithmetic(Command.EQ);
-                        break;
-                    case Symbol.TILDE:
                         _vmWriter.WriteArithmetic(Command.NEG);
                         break;
-                    case Symbol.STAR:
-                        _vmWriter.WriteCall($"Math.multiply", 2);
-                        break;
-                    case Symbol.SLASH:
-                        _vmWriter.WriteCall($"Math.divide", 2);
+                    case Symbol.TILDE:
+                        _vmWriter.WriteArithmetic(Command.NOT);
                         break;
                 }
             }
@@ -742,6 +768,20 @@ namespace JackCompiler.Modules
             }
             else if (_currentResult.Expect(TokenType.STRING_CONST))
             {
+                string stringConstant = (string)_currentResult.Value.Value;
+                int stringLength = stringConstant.Length;
+
+                _vmWriter.WritePush(Segment.CONSTANT, stringLength);
+                _vmWriter.WriteCall($"String.new", 1);
+                _vmWriter.WritePop(Segment.TEMP, 3);
+
+                for (int i = 0; i < stringLength; i++)
+                {
+                    _vmWriter.WritePush(Segment.TEMP, 3);
+                    _vmWriter.WritePush(Segment.CONSTANT, stringConstant[i]);
+                    _vmWriter.WriteCall($"String.appendChar", 2);
+                }
+
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
@@ -768,6 +808,8 @@ namespace JackCompiler.Modules
                     if (expressionResult.IsFailed) return expressionResult;
 
                     _vmWriter.WriteArithmetic(Command.ADD);
+                    _vmWriter.WritePop(Segment.POINTER, 1);
+                    _vmWriter.WritePush(Segment.THAT, 0);
 
                     if (!_currentResult.Expect(Symbol.RBRACK)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RBRACK));
 

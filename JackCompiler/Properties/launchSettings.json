@@ -2,7 +2,8 @@
   "profiles": {
     "JackAnalyzer": {
       "commandName": "Project",
-      "commandLineArgs": "\"C:\\Users\\phoug\\Desktop\\Square\\Main.jack\" \r\n\"C:\\Users\\phoug\\Desktop\\Square\\Main.xml\""
+      "commandLineArgs": "-dir",
+      "workingDirectory": "C:\\Users\\phoug\\Desktop\\Square"
     }
   }
 }

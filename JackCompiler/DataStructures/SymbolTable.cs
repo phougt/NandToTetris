@@ -17,7 +17,7 @@ namespace JackCompiler.DataStructures
         public SymbolTable()
         {
             _symbolTableRows = [];
-            _kindsCount = new int[4];
+            _kindsCount = new int[Enum.GetNames(typeof(Kind)).Length];
         }
 
         public void Reset()

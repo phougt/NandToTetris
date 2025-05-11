@@ -8,10 +8,10 @@ namespace JackCompiler.Enums
 {
     public enum Kind
     {
-        NONE = -1,
-        STATIC = 0,
-        FIELD = 1,
-        ARGUMENT = 2,
-        VAR = 3
+        NONE = 0,
+        STATIC = 1,
+        FIELD = 2,
+        ARGUMENT = 3,
+        VAR = 4
     }
 }

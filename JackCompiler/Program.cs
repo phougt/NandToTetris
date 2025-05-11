@@ -102,6 +102,7 @@ namespace JackCompiler
                 {
                     Console.Error.WriteLine("[Error] Compilation failed.");
                     Console.Error.WriteLine(ex.Message);
+                    Console.Error.WriteLine(ex.StackTrace);
                     Environment.Exit(1);
                 }
             }
