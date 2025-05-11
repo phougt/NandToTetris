@@ -8,8 +8,9 @@ namespace JackCompiler.Enums
 {
     public enum Segment
     {
-        CONST,
-        ARG,
+        NONE,
+        CONSTANT,
+        ARGUMENT,
         LOCAL,
         STATIC,
         THIS,

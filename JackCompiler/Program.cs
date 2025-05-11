@@ -41,7 +41,8 @@ namespace JackCompiler
             {
                 stopwatch.Start();
                 JackTokenizer tokenizer = new JackTokenizer(firstArg);
-                CompilationEngine engine = new CompilationEngine(tokenizer, secondArg);
+                VMWriter writer = new VMWriter(secondArg.Replace(".*", ".vm"));
+                CompilationEngine engine = new CompilationEngine(tokenizer, writer);
 
                 var compileResult = engine.CompileClass();
                 if (compileResult.IsFailed)
@@ -71,7 +72,8 @@ namespace JackCompiler
                     {
                         stopwatch.Start();
                         JackTokenizer tokenizer = new JackTokenizer(file);
-                        CompilationEngine engine = new CompilationEngine(tokenizer, file.Replace(".jack", ".xml"));
+                        VMWriter writer = new VMWriter(file.Replace(".jack", ".vm"));
+                        CompilationEngine engine = new CompilationEngine(tokenizer, writer);
 
                         var compileResult = engine.CompileClass();
                         if (compileResult.IsFailed)

@@ -35,7 +35,7 @@ namespace JackCompiler.Modules
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Error writing to file: {ex.Message}");
+                Console.Error.WriteLine($"[Error] writing to file: {ex.Message}");
                 return false;
             }
             finally
@@ -51,12 +51,12 @@ namespace JackCompiler.Modules
 
         public void WritePush(Segment segment, int index)
         {
-            _vmOutput.AppendLine($"push {segment} {index}");
+            _vmOutput.AppendLine($"push {segment.ToString().ToLower()} {index}");
         }
 
         public void WritePop(Segment segment, int index)
         {
-            _vmOutput.AppendLine($"pop {segment} {index}");
+            _vmOutput.AppendLine($"pop {segment.ToString().ToLower()} {index}");
         }
 
         public void WriteArithmetic(Command command)

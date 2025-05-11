@@ -9,57 +9,33 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Reflection.Metadata.Ecma335;
+using JackCompiler.DataStructures;
 
 namespace JackCompiler.Modules
 {
     public class CompilationEngine : IDisposable
     {
         private readonly JackTokenizer _tokenizer;
+        private readonly VMWriter _vmWriter;
+        private readonly SymbolTable _classScopeTable;
+        private readonly SymbolTable _subroutineScopeTable;
         private readonly StringBuilder _output;
-        private string _outputFilePath;
-        public string OutputFilePath
-        {
-            get { return _outputFilePath; }
-            set { _outputFilePath = value; }
-        }
+        private string _currentClassname = string.Empty;
         private Result<Token> _currentResult;
+        private int _generalPurposeCounter = 0;
 
-        public CompilationEngine(JackTokenizer tokenizer)
+        public CompilationEngine(JackTokenizer tokenizer, VMWriter writer)
         {
             _tokenizer = tokenizer;
+            _vmWriter = writer;
+            _classScopeTable = new SymbolTable();
+            _subroutineScopeTable = new SymbolTable();
             _output = new StringBuilder();
-            _outputFilePath = string.Empty;
-        }
-
-        public CompilationEngine(JackTokenizer tokenizer, string outputFilePath)
-        {
-            _tokenizer = tokenizer;
-            _output = new StringBuilder();
-            _outputFilePath = outputFilePath;
         }
 
         public bool TryWriteOutputToFile()
         {
-            try
-            {
-                StreamWriter writer = new(_outputFilePath);
-                writer.Write(_output.ToString());
-                writer.Close();
-            }
-            catch (Exception)
-            {
-                return false;
-            }
-
-            return true;
-        }
-
-        public bool WriteOutputToFile()
-        {
-            StreamWriter writer = new(_outputFilePath);
-            writer.Write(_output.ToString());
-            writer.Close();
-            return false;
+            return _vmWriter.TryWriteToFile();
         }
 
         public Result CompileClass()
@@ -68,20 +44,15 @@ namespace JackCompiler.Modules
             if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             if (!_currentResult.Expect(Keyword.CLASS)) return Result.Fail(_currentResult.CreateExpectedError(Keyword.CLASS));
 
-            _output.AppendLine("<class>");
-            AppendKeyword(_currentResult);
-
             _currentResult = _tokenizer.Advance();
             if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
-            AppendIdentifier(_currentResult);
+            _currentClassname = (string)_currentResult.Value.Value;
 
             _currentResult = _tokenizer.Advance();
             if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             if (!_currentResult.Expect(Symbol.LBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LBRACE));
-
-            AppendSymbol(_currentResult);
 
             _currentResult = _tokenizer.Advance();
             if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
@@ -107,52 +78,42 @@ namespace JackCompiler.Modules
             if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             if (!_currentResult.Expect(Symbol.RBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RBRACE));
 
-            AppendSymbol(_currentResult);
-
-            _output.AppendLine("</class>");
-
+            _classScopeTable.Reset();
             return Result.Ok();
         }
 
         private Result CompileClassVar()
         {
-            _output.AppendLine("<classVarDec>");
-
             if (_currentResult.Expect(Keyword.STATIC) || _currentResult.Expect(Keyword.FIELD))
             {
-                AppendKeyword(_currentResult);
+                Kind kind = _currentResult.Expect(Keyword.STATIC) ? Kind.STATIC : Kind.FIELD;
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.ExpectType()) return Result.Fail(_currentResult.CreateTypeExpectedError());
 
-                if (_currentResult.ExpectBuiltInType())
-                {
-                    AppendKeyword(_currentResult);
-                }
-                else
-                {
-                    AppendIdentifier(_currentResult);
-                }
+                string type = _currentResult.ExpectBuiltInType() ? ((Keyword)_currentResult.Value.Value).ToString() : (string)_currentResult.Value.Value;
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
-                AppendIdentifier(_currentResult);
+                _classScopeTable.Define(((Keyword)_currentResult.Value.Value).ToString()
+                                        , type
+                                        , kind);
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
                 while (_currentResult.Expect(Symbol.COMMA))
                 {
-                    AppendSymbol(_currentResult);
-
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                     if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
-                    AppendIdentifier(_currentResult);
+                    _classScopeTable.Define(((Keyword)_currentResult.Value.Value).ToString()
+                                            , type
+                                            , kind);
 
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
@@ -161,23 +122,23 @@ namespace JackCompiler.Modules
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(Symbol.SEMICOLON)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.SEMICOLON));
 
-                AppendSymbol(_currentResult);
-
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
 
-            _output.AppendLine("</classVarDec>");
             return Result.Ok();
         }
 
         private Result CompileSubroutine()
         {
-            _output.AppendLine("<subroutineDec>");
-
             if (_currentResult.Expect(Keyword.CONSTRUCTOR) || _currentResult.Expect(Keyword.FUNCTION) || _currentResult.Expect(Keyword.METHOD))
             {
-                AppendKeyword(_currentResult);
+                if (_currentResult.Expect(Keyword.METHOD))
+                {
+                    _subroutineScopeTable.Define("this", _currentClassname, Kind.ARGUMENT);
+                    _vmWriter.WritePush(Segment.ARGUMENT, _subroutineScopeTable.IndexOf("this"));
+                    _vmWriter.WritePop(Segment.POINTER, 0);
+                }
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
@@ -187,26 +148,15 @@ namespace JackCompiler.Modules
                     return Result.Fail(_currentResult.CreateTypeExpectedError());
                 }
 
-                if (_currentResult.Expect(Keyword.VOID) || _currentResult.ExpectBuiltInType())
-                {
-                    AppendKeyword(_currentResult);
-                }
-                else
-                {
-                    AppendIdentifier(_currentResult);
-                }
-
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
-                AppendIdentifier(_currentResult);
+                string subroutineName = (string)_currentResult.Value.Value;
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(Symbol.LPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LPAR));
-
-                AppendSymbol(_currentResult);
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
@@ -217,143 +167,116 @@ namespace JackCompiler.Modules
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
 
-                AppendSymbol(_currentResult);
-
-                _output.AppendLine("<subroutineBody>");
-
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(Symbol.LBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LBRACE));
 
-                AppendSymbol(_currentResult);
-
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                while (_currentResult.Expect(Keyword.VAR) || _currentResult.IsStatements())
+                int localVariableCount = 0;
+
+                while (_currentResult.Expect(Keyword.VAR))
                 {
-                    if (_currentResult.Expect(Keyword.VAR))
-                    {
-                        var temp = CompileVarDec();
-                        if (temp.IsFailed) return temp;
-                    }
-                    else
-                    {
-                        var temp = CompileStatements();
-                        if (temp.IsFailed) return temp;
-                    }
+                    Result<int> resultVarDec = CompileVarDec();
+                    if (resultVarDec.IsFailed) return resultVarDec.ToResult();
+                    localVariableCount += resultVarDec.Value;
+                }
+
+                _vmWriter.WriteFunction($"{_currentClassname}.{subroutineName}", localVariableCount);
+
+                while (_currentResult.IsStatement())
+                {
+                    var resultVarDec = CompileStatements();
+                    if (resultVarDec.IsFailed) return resultVarDec;
                 }
 
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(Symbol.RBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RBRACE));
 
-                AppendSymbol(_currentResult);
-                _output.AppendLine("</subroutineBody>");
-
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
 
-            _output.AppendLine("</subroutineDec>");
+            _subroutineScopeTable.Reset();
             return Result.Ok();
         }
 
         private Result CompileParameterList()
         {
-            _output.AppendLine("<parameterList>");
-
             if (_currentResult.ExpectType())
             {
-
-                if (_currentResult.ExpectBuiltInType())
-                {
-                    AppendKeyword(_currentResult);
-                }
-                else
-                {
-                    AppendIdentifier(_currentResult);
-                }
+                string type = _currentResult.ExpectBuiltInType() ? ((Keyword)_currentResult.Value.Value).ToString() : (string)_currentResult.Value.Value;
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
-                AppendIdentifier(_currentResult);
+                _subroutineScopeTable.Define(((Keyword)_currentResult.Value.Value).ToString()
+                                            , type
+                                            , Kind.ARGUMENT);
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
                 while (_currentResult.Expect(Symbol.COMMA))
                 {
-                    AppendSymbol(_currentResult);
-
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                     if (!_currentResult.ExpectType()) return Result.Fail(_currentResult.CreateTypeExpectedError());
 
-                    if (_currentResult.ExpectBuiltInType())
-                    {
-                        AppendKeyword(_currentResult);
-                    }
-                    else
-                    {
-                        AppendIdentifier(_currentResult);
-                    }
+                    string tempType = _currentResult.ExpectBuiltInType() ? ((Keyword)_currentResult.Value.Value).ToString() : (string)_currentResult.Value.Value;
 
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                     if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
-                    AppendIdentifier(_currentResult);
+                    _subroutineScopeTable.Define(((Keyword)_currentResult.Value.Value).ToString()
+                                            , type
+                                            , Kind.ARGUMENT);
 
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 }
-
             }
 
-            _output.AppendLine("</parameterList>");
             return Result.Ok();
         }
 
-        private Result CompileVarDec()
+        private Result<int> CompileVarDec()
         {
-            _output.AppendLine("<varDec>");
+            int localVariableCount = 0;
+
             if (_currentResult.Expect(Keyword.VAR))
             {
-                AppendKeyword(_currentResult);
-
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.ExpectType()) return Result.Fail(_currentResult.CreateTypeExpectedError());
 
-                if (_currentResult.ExpectBuiltInType())
-                {
-                    AppendKeyword(_currentResult);
-                }
-                else
-                {
-                    AppendIdentifier(_currentResult);
-                }
+                string tempType = _currentResult.ExpectBuiltInType() ? ((Keyword)_currentResult.Value.Value).ToString() : (string)_currentResult.Value.Value;
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
-                AppendIdentifier(_currentResult);
+                _subroutineScopeTable.Define((string)_currentResult.Value.Value
+                                        , tempType
+                                        , Kind.VAR);
+                localVariableCount++;
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
                 while (_currentResult.Expect(Symbol.COMMA))
                 {
-                    AppendSymbol(_currentResult);
-
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                     if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
-                    AppendIdentifier(_currentResult);
+                    _subroutineScopeTable.Define((string)_currentResult.Value.Value
+                                            , tempType
+                                            , Kind.VAR);
+                    localVariableCount++;
 
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
@@ -362,255 +285,270 @@ namespace JackCompiler.Modules
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(Symbol.SEMICOLON)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.SEMICOLON));
 
-                AppendSymbol(_currentResult);
-
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
-
             }
 
-            _output.AppendLine("</varDec>");
-            return Result.Ok();
+            return Result.Ok(localVariableCount);
         }
 
         private Result CompileStatements()
         {
-            _output.AppendLine("<statements>");
-
-            if (_currentResult.Expect(Keyword.LET)
-                || _currentResult.Expect(Keyword.DO)
-                || _currentResult.Expect(Keyword.IF)
-                || _currentResult.Expect(Keyword.WHILE)
-                || _currentResult.Expect(Keyword.RETURN))
+            while (_currentResult.Expect(Keyword.LET)
+                    || _currentResult.Expect(Keyword.DO)
+                    || _currentResult.Expect(Keyword.IF)
+                    || _currentResult.Expect(Keyword.WHILE)
+                    || _currentResult.Expect(Keyword.RETURN))
             {
-
-                while (_currentResult.Expect(Keyword.LET)
-                        || _currentResult.Expect(Keyword.DO)
-                        || _currentResult.Expect(Keyword.IF)
-                        || _currentResult.Expect(Keyword.WHILE)
-                        || _currentResult.Expect(Keyword.RETURN))
+                if (_currentResult.Expect(Keyword.LET))
                 {
-                    if (_currentResult.Expect(Keyword.LET))
-                    {
-                        var temp = CompileLet();
-                        if (temp.IsFailed) return temp;
-                    }
-                    else if (_currentResult.Expect(Keyword.DO))
-                    {
-                        var temp = CompileDo();
-                        if (temp.IsFailed) return temp;
-                    }
-                    else if (_currentResult.Expect(Keyword.IF))
-                    {
-                        var temp = CompileIf();
-                        if (temp.IsFailed) return temp;
-                    }
-                    else if (_currentResult.Expect(Keyword.WHILE))
-                    {
-                        var temp = CompileWhile();
-                        if (temp.IsFailed) return temp;
-                    }
-                    else
-                    {
-                        var temp = CompileReturn();
-                        if (temp.IsFailed) return temp;
-                    }
+                    var temp = CompileLet();
+                    if (temp.IsFailed) return temp;
+                }
+                else if (_currentResult.Expect(Keyword.DO))
+                {
+                    var temp = CompileDo();
+                    if (temp.IsFailed) return temp;
+                }
+                else if (_currentResult.Expect(Keyword.IF))
+                {
+                    var temp = CompileIf();
+                    if (temp.IsFailed) return temp;
+                }
+                else if (_currentResult.Expect(Keyword.WHILE))
+                {
+                    var temp = CompileWhile();
+                    if (temp.IsFailed) return temp;
+                }
+                else
+                {
+                    var temp = CompileReturn();
+                    if (temp.IsFailed) return temp;
                 }
             }
 
-            _output.AppendLine("</statements>");
             return Result.Ok();
         }
 
         private Result CompileDo()
         {
-            _output.AppendLine("<doStatement>");
             if (_currentResult.Expect(Keyword.DO))
             {
-                AppendKeyword(_currentResult);
-
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
-                AppendIdentifier(_currentResult);
+                string tempIdentifier = (string)_currentResult.Value.Value;
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
                 if (_currentResult.Expect(Symbol.LPAR))
                 {
-                    AppendSymbol(_currentResult);
-
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
                     var temp = CompileExpressionList();
-                    if (temp.IsFailed) return temp;
+                    if (temp.IsFailed) return temp.ToResult();
+
+                    int argumentCount = temp.Value;
+                    _vmWriter.WriteCall($"{_currentClassname}.{tempIdentifier}", argumentCount);
 
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                     if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
-
-                    AppendSymbol(_currentResult);
                 }
                 else if (_currentResult.Expect(Symbol.DOT))
                 {
-                    AppendSymbol(_currentResult);
+                    int subroutineScopeIndex = _subroutineScopeTable.IndexOf(tempIdentifier);
+                    int classScopeIndex = _classScopeTable.IndexOf(tempIdentifier);
 
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                     if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
-                    AppendIdentifier(_currentResult);
+                    string subroutineName = (string)_currentResult.Value.Value;
 
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                     if (!_currentResult.Expect(Symbol.LPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LPAR));
 
-                    AppendSymbol(_currentResult);
-
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                    var temp = CompileExpressionList();
-                    if (temp.IsFailed) return temp;
+                    Result<int> expressionListResult = CompileExpressionList();
+                    if (expressionListResult.IsFailed) return expressionListResult.ToResult();
+                    int argumentCount = expressionListResult.Value;
 
-                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                     if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
 
-                    AppendSymbol(_currentResult);
+                    if (subroutineScopeIndex == -1 && classScopeIndex == -1)
+                    {
+                        _vmWriter.WriteCall($"{tempIdentifier}.{subroutineName}", argumentCount);
+                    }
+                    else if (subroutineScopeIndex != -1)
+                    {
+                        _vmWriter.WriteCall($"{_subroutineScopeTable.TypeOf(tempIdentifier)}.{subroutineName}", argumentCount);
+                    }
+                    else if (classScopeIndex != -1)
+                    {
+                        _vmWriter.WriteCall($"{_classScopeTable.TypeOf(tempIdentifier)}.{subroutineName}", argumentCount);
+                    }
+                    else
+                    {
+                        return Result.Fail(new SemanticError
+                        {
+                            Message = $"[Error] File: {_currentResult.Value.Filename}. '{tempIdentifier}' is undefined in this context.  Line: {_currentResult.Value.Row}"
+                        });
+                    }
                 }
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(Symbol.SEMICOLON)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.SEMICOLON));
 
-                AppendSymbol(_currentResult);
+                _vmWriter.WritePop(Segment.TEMP, 1);
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
 
-            _output.AppendLine("</doStatement>");
             return Result.Ok();
         }
 
         private Result CompileLet()
         {
-            _output.AppendLine("<letStatement>");
-
             if (_currentResult.Expect(Keyword.LET))
             {
-                AppendKeyword(_currentResult);
-
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
-                AppendIdentifier(_currentResult);
+                string tempIdentifier = (string)_currentResult.Value.Value;
+                int subroutineScopeIndex = _subroutineScopeTable.IndexOf(tempIdentifier);
+                int classScopeIndex = _classScopeTable.IndexOf(tempIdentifier);
+
+                if (subroutineScopeIndex == -1 && classScopeIndex == -1)
+                {
+                    return Result.Fail(new SemanticError
+                    {
+                        Message = $"[Error] File: {_currentResult.Value.Filename}. '{tempIdentifier}' is undefined in this context.  Line: {_currentResult.Value.Row}"
+                    });
+                }
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
                 if (_currentResult.Expect(Symbol.LBRACK))
                 {
-                    AppendSymbol(_currentResult);
-
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+
+                    if (subroutineScopeIndex != -1)
+                        _vmWriter.WritePush(_subroutineScopeTable.KindOf(tempIdentifier).ToSegment(), subroutineScopeIndex);
+                    else if (classScopeIndex != -1)
+                        _vmWriter.WritePush(_classScopeTable.KindOf(tempIdentifier).ToSegment(), classScopeIndex);
 
                     var tmp = CompileExpression();
                     if (tmp.IsFailed) return tmp;
 
+                    _vmWriter.WriteArithmetic(Command.ADD);
+                    _vmWriter.WritePop(Segment.TEMP, 0);
+
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                     if (!_currentResult.Expect(Symbol.RBRACK)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RBRACK));
 
-                    AppendSymbol(_currentResult);
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                    if (!_currentResult.Expect(Symbol.EQUAL)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.EQUAL));
 
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+
+                    var temp = CompileExpression();
+                    if (temp.IsFailed) return temp;
+
+                    _vmWriter.WritePush(Segment.TEMP, 0);
+                    _vmWriter.WritePop(Segment.POINTER, 1);
+                    _vmWriter.WritePop(Segment.THAT, 0);
+
+                }
+                else
+                {
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                    if (!_currentResult.Expect(Symbol.EQUAL)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.EQUAL));
+
+                    _currentResult = _tokenizer.Advance();
+                    if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+
+                    var temp = CompileExpression();
+                    if (temp.IsFailed) return temp;
+
+                    if (subroutineScopeIndex != -1)
+                        _vmWriter.WritePop(_subroutineScopeTable.KindOf(tempIdentifier).ToSegment(), subroutineScopeIndex);
+                    else if (classScopeIndex != -1)
+                        _vmWriter.WritePop(_classScopeTable.KindOf(tempIdentifier).ToSegment(), classScopeIndex);
                 }
 
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
-                if (!_currentResult.Expect(Symbol.EQUAL)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.EQUAL));
-
-                AppendSymbol(_currentResult);
-
-                _currentResult = _tokenizer.Advance();
-                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
-
-                var temp = CompileExpression();
-                if (temp.IsFailed) return temp;
-
-                if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(Symbol.SEMICOLON)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.SEMICOLON));
-
-                AppendSymbol(_currentResult);
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
 
-            _output.AppendLine("</letStatement>");
             return Result.Ok();
         }
 
         private Result CompileWhile()
         {
-            _output.AppendLine("<whileStatement>");
-
             if (_currentResult.Expect(Keyword.WHILE))
             {
-                AppendKeyword(_currentResult);
-
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(Symbol.LPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LPAR));
 
-                AppendSymbol(_currentResult);
-
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
+                int whileCounter = _generalPurposeCounter;
+                _generalPurposeCounter++;
+
+                _vmWriter.WriteLabel($"WHILE_CONDITION_{_generalPurposeCounter}");
                 var expressionResult = CompileExpression();
                 if (expressionResult.IsFailed) return expressionResult;
 
-                if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
+                _vmWriter.WriteArithmetic(Command.NEG);
+                _vmWriter.WriteIf($"WHILE_END_{whileCounter}");
 
-                AppendSymbol(_currentResult);
+                if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(Symbol.LBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LBRACE));
-
-                AppendSymbol(_currentResult);
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
                 var statementsResult = CompileStatements();
                 if (statementsResult.IsFailed) return statementsResult;
+                _vmWriter.WriteGoto($"WHILE_CONDITION_{_generalPurposeCounter}");
 
                 if (!_currentResult.Expect(Symbol.RBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RBRACE));
-
-                AppendSymbol(_currentResult);
+                _vmWriter.WriteLabel($"WHILE_END_{whileCounter}");
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
 
-            _output.AppendLine("</whileStatement>");
             return Result.Ok();
         }
 
         private Result CompileReturn()
         {
-            _output.AppendLine("<returnStatement>");
-
             if (_currentResult.Expect(Keyword.RETURN))
             {
-                AppendKeyword(_currentResult);
-
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
@@ -619,32 +557,28 @@ namespace JackCompiler.Modules
                     var expressionResult = CompileExpression();
                     if (expressionResult.IsFailed) return expressionResult;
                 }
+                else
+                {
+                    _vmWriter.WritePush(Segment.CONSTANT, 0);
+                }
 
                 if (!_currentResult.Expect(Symbol.SEMICOLON)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.SEMICOLON));
-
-                AppendSymbol(_currentResult);
+                _vmWriter.WriteReturn();
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
 
-            _output.AppendLine("</returnStatement>");
             return Result.Ok();
         }
 
         private Result CompileIf()
         {
-            _output.AppendLine("<ifStatement>");
-
             if (_currentResult.Expect(Keyword.IF))
             {
-                AppendKeyword(_currentResult);
-
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(Symbol.LPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LPAR));
-
-                AppendSymbol(_currentResult);
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
@@ -654,60 +588,54 @@ namespace JackCompiler.Modules
 
                 if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
 
-                AppendSymbol(_currentResult);
-
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 if (!_currentResult.Expect(Symbol.LBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LBRACE));
 
-                AppendSymbol(_currentResult);
-
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
+                int ifElseCounter = _generalPurposeCounter;
+
+                _vmWriter.WriteArithmetic(Command.NEG);
+                _vmWriter.WriteIf($"ELSE_{ifElseCounter}");
+                _generalPurposeCounter++;
                 var statementsResult = CompileStatements();
                 if (statementsResult.IsFailed) return statementsResult;
 
                 if (!_currentResult.Expect(Symbol.RBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RBRACE));
-
-                AppendSymbol(_currentResult);
+                _vmWriter.WriteGoto($"END_IF_ELSE_{ifElseCounter}");
 
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
                 if (_currentResult.Expect(Keyword.ELSE))
                 {
-                    AppendKeyword(_currentResult);
-
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                     if (!_currentResult.Expect(Symbol.LBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LBRACE));
 
-                    AppendSymbol(_currentResult);
-
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
+                    _vmWriter.WriteGoto($"ELSE_{ifElseCounter}");
                     var elseStatementsResult = CompileStatements();
                     if (elseStatementsResult.IsFailed) return elseStatementsResult;
 
                     if (!_currentResult.Expect(Symbol.RBRACE)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RBRACE));
 
-                    AppendSymbol(_currentResult);
-
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 }
+
+                _vmWriter.WriteLabel($"END_IF_ELSE_{ifElseCounter}");
             }
 
-            _output.AppendLine("</ifStatement>");
             return Result.Ok();
         }
 
         private Result CompileExpression()
         {
-            _output.AppendLine("<expression>");
-
             if (_currentResult.IsTerm())
             {
                 var termResult = CompileTerm();
@@ -715,8 +643,6 @@ namespace JackCompiler.Modules
 
                 while (_currentResult.IsUnaryOperator())
                 {
-                    AppendSymbol(_currentResult);
-
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
@@ -727,114 +653,205 @@ namespace JackCompiler.Modules
                 }
             }
 
-            _output.AppendLine("</expression>");
             return Result.Ok();
         }
 
         private Result CompileTerm()
         {
-            _output.AppendLine("<term>");
-
             if (!_currentResult.IsTerm()) return Result.Fail(new SyntaxError { Message = "Expected term." });
 
             if (_currentResult.IsKeywordConstant())
             {
-                AppendKeyword(_currentResult);
+                switch ((Keyword)_currentResult.Value.Value)
+                {
+                    case Keyword.TRUE:
+                        _vmWriter.WritePush(Segment.CONSTANT, 1);
+                        _vmWriter.WriteArithmetic(Command.NEG);
+                        break;
+                    case Keyword.FALSE:
+                        _vmWriter.WritePush(Segment.CONSTANT, 0);
+                        break;
+                    case Keyword.NULL:
+                        _vmWriter.WritePush(Segment.CONSTANT, 0);
+                        break;
+                    case Keyword.THIS:
+                        int thisIndex = _subroutineScopeTable.IndexOf("this");
+                        if (thisIndex == -1)
+                            _vmWriter.WritePush(Segment.ARGUMENT, thisIndex);
+                        else
+                            return Result.Fail(
+                                    new SemanticError
+                                    {
+                                        Message = $"[Error] File: {_currentResult.Value.Filename}. 'this' is undefined in this context.  Line: {_currentResult.Value.Row}"
+                                    });
+                        break;
+                }
+
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
             else if (_currentResult.IsUnaryOperator())
             {
-                AppendSymbol(_currentResult);
+                Result<Token> unaryOperator = _currentResult;
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
-
                 if (!_currentResult.IsTerm()) return Result.Fail(new SyntaxError { Message = "Expected term." });
 
                 var unaryTermResult = CompileTerm();
                 if (unaryTermResult.IsFailed) return unaryTermResult;
+
+                switch ((Symbol)unaryOperator.Value.Value)
+                {
+                    case Symbol.MINUS:
+                        _vmWriter.WriteArithmetic(Command.SUB);
+                        break;
+                    case Symbol.PLUS:
+                        _vmWriter.WriteArithmetic(Command.ADD);
+                        break;
+                    case Symbol.AMP:
+                        _vmWriter.WriteArithmetic(Command.AND);
+                        break;
+                    case Symbol.PIPE:
+                        _vmWriter.WriteArithmetic(Command.OR);
+                        break;
+                    case Symbol.LT:
+                        _vmWriter.WriteArithmetic(Command.LT);
+                        break;
+                    case Symbol.GT:
+                        _vmWriter.WriteArithmetic(Command.GT);
+                        break;
+                    case Symbol.EQUAL:
+                        _vmWriter.WriteArithmetic(Command.EQ);
+                        break;
+                    case Symbol.TILDE:
+                        _vmWriter.WriteArithmetic(Command.NEG);
+                        break;
+                    case Symbol.STAR:
+                        _vmWriter.WriteCall($"Math.multiply", 2);
+                        break;
+                    case Symbol.SLASH:
+                        _vmWriter.WriteCall($"Math.divide", 2);
+                        break;
+                }
             }
             else if (_currentResult.Expect(TokenType.INT_CONST))
             {
-                AppendIntConstant(_currentResult);
+                _vmWriter.WritePush(Segment.CONSTANT, (int)_currentResult.Value.Value);
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
             else if (_currentResult.Expect(TokenType.STRING_CONST))
             {
-                AppendStringConstant(_currentResult);
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
             else if (_currentResult.Expect(TokenType.IDENTIFIER))
             {
-                AppendIdentifier(_currentResult);
+                string identifier = (string)_currentResult.Value.Value;
+                int subroutineScopeIndex = _subroutineScopeTable.IndexOf(identifier);
+                int classScopeIndex = _classScopeTable.IndexOf(identifier);
+
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
                 if (_currentResult.Expect(Symbol.LBRACK))
                 {
-                    AppendSymbol(_currentResult);
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+
+                    if (subroutineScopeIndex != -1)
+                        _vmWriter.WritePush(_subroutineScopeTable.KindOf(identifier).ToSegment(), subroutineScopeIndex);
+                    else if (classScopeIndex != -1)
+                        _vmWriter.WritePush(_classScopeTable.KindOf(identifier).ToSegment(), classScopeIndex);
 
                     var expressionResult = CompileExpression();
                     if (expressionResult.IsFailed) return expressionResult;
 
+                    _vmWriter.WriteArithmetic(Command.ADD);
+
                     if (!_currentResult.Expect(Symbol.RBRACK)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RBRACK));
 
-                    AppendSymbol(_currentResult);
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 }
                 else if (_currentResult.Expect(Symbol.LPAR))
                 {
-                    AppendSymbol(_currentResult);
-
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                    var expressionListResult = CompileExpressionList();
-                    if (expressionListResult.IsFailed) return expressionListResult;
+                    Result<int> expressionListResult = CompileExpressionList();
+                    if (expressionListResult.IsFailed) return expressionListResult.ToResult();
+
+                    int argumentCount = expressionListResult.Value;
+                    _vmWriter.WriteCall($"{_currentClassname}.{identifier}", argumentCount);
 
                     if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
 
-                    AppendSymbol(_currentResult);
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                 }
                 else if (_currentResult.Expect(Symbol.DOT))
                 {
-                    AppendSymbol(_currentResult);
-
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                     if (!_currentResult.Expect(TokenType.IDENTIFIER)) return Result.Fail(_currentResult.CreateExpectedError(TokenType.IDENTIFIER));
 
-                    AppendIdentifier(_currentResult);
+                    string subroutineName = (string)_currentResult.Value.Value;
 
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
                     if (!_currentResult.Expect(Symbol.LPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.LPAR));
 
-                    AppendSymbol(_currentResult);
-
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
-                    var expressionListResult = CompileExpressionList();
-                    if (expressionListResult.IsFailed) return expressionListResult;
+                    Result<int> expressionListResult = CompileExpressionList();
+                    if (expressionListResult.IsFailed) return expressionListResult.ToResult();
+                    int argumentCount = expressionListResult.Value;
 
                     if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
 
-                    AppendSymbol(_currentResult);
+                    if (subroutineScopeIndex == -1 && classScopeIndex == -1)
+                    {
+                        _vmWriter.WriteCall($"{identifier}.{subroutineName}", argumentCount);
+                    }
+                    else if (subroutineScopeIndex != -1)
+                    {
+                        _vmWriter.WriteCall($"{_subroutineScopeTable.TypeOf(identifier)}.{subroutineName}", argumentCount);
+                    }
+                    else if (classScopeIndex != -1)
+                    {
+                        _vmWriter.WriteCall($"{_classScopeTable.TypeOf(identifier)}.{subroutineName}", argumentCount);
+                    }
+                    else
+                    {
+                        return Result.Fail(new SemanticError
+                        {
+                            Message = $"[Error] File: {_currentResult.Value.Filename}. '{identifier}' is undefined in this context.  Line: {_currentResult.Value.Row}"
+                        });
+                    }
+
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
+                }
+                else
+                {
+                    if (subroutineScopeIndex == -1 && classScopeIndex == -1)
+                    {
+                        return Result.Fail(new SemanticError
+                        {
+                            Message = $"[Error] File: {_currentResult.Value.Filename}. '{identifier}' is undefined in this context.  Line: {_currentResult.Value.Row}"
+                        });
+                    }
+
+                    if (subroutineScopeIndex != -1)
+                        _vmWriter.WritePush(_subroutineScopeTable.KindOf(identifier).ToSegment(), subroutineScopeIndex);
+                    else
+                        _vmWriter.WritePush(_classScopeTable.KindOf(identifier).ToSegment(), classScopeIndex);
                 }
             }
             else if (_currentResult.Expect(Symbol.LPAR))
             {
-                AppendSymbol(_currentResult);
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
 
@@ -843,68 +860,40 @@ namespace JackCompiler.Modules
 
                 if (!_currentResult.Expect(Symbol.RPAR)) return Result.Fail(_currentResult.CreateExpectedError(Symbol.RPAR));
 
-                AppendSymbol(_currentResult);
                 _currentResult = _tokenizer.Advance();
                 if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
             }
 
-            _output.AppendLine("</term>");
             return Result.Ok();
         }
 
-        private Result CompileExpressionList()
+        private Result<int> CompileExpressionList()
         {
-            _output.AppendLine("<expressionList>");
+            int argumentCount = 0;
 
             if (_currentResult.IsTerm())
             {
                 var expressionResult = CompileExpression();
                 if (expressionResult.IsFailed) return expressionResult;
+                argumentCount++;
 
                 while (_currentResult.Expect(Symbol.COMMA))
                 {
-                    AppendSymbol(_currentResult);
-
                     _currentResult = _tokenizer.Advance();
                     if (_currentResult.IsFailed) return Result.Fail(_currentResult.Errors);
-
                     expressionResult = CompileExpression();
                     if (expressionResult.IsFailed) return expressionResult;
+
+                    argumentCount++;
                 }
             }
 
-            _output.AppendLine("</expressionList>");
-            return Result.Ok();
+            return Result.Ok(argumentCount);
         }
 
-        public void Dispose() 
+        public void Dispose()
         {
             _tokenizer.Dispose();
-        }
-
-        private void AppendKeyword(Result<Token> token)
-        {
-            _output.AppendLine($"<keyword> {((Keyword)token.Value.Value).ToString().ToLower()} </keyword>");
-        }
-
-        private void AppendIdentifier(Result<Token> token)
-        {
-            _output.AppendLine($"<identifier> {(string)_currentResult.Value.Value} </identifier>");
-        }
-
-        private void AppendSymbol(Result<Token> token)
-        {
-            _output.AppendLine($"<symbol> {((Symbol)_currentResult.Value.Value).ToSymbolString()} </symbol>");
-        }
-
-        private void AppendStringConstant(Result<Token> token)
-        {
-            _output.AppendLine($"<stringConstant> {_currentResult.Value.Value} </stringConstant>");
-        }
-
-        private void AppendIntConstant(Result<Token> token)
-        {
-            _output.AppendLine($"<integerConstant> {_currentResult.Value.Value} </integerConstant>");
         }
     }
 }

@@ -40,6 +40,27 @@ namespace JackCompiler.Extensions
             }
         }
 
+        public static Result<Token> ExpectOrError(this Result<Token> token, Symbol symbol)
+        {
+            if (token.IsFailed) return Result.Fail(token.Errors);
+            if (!token.Expect(symbol)) return Result.Fail(token.CreateExpectedError(symbol));
+            return token;
+        }
+
+        public static Result<Token> ExpectOrError(this Result<Token> token, TokenType tokenType)
+        {
+            if (token.IsFailed) return Result.Fail(token.Errors);
+            if (!token.Expect(tokenType)) return Result.Fail(token.CreateExpectedError(tokenType));
+            return token;
+        }
+
+        public static Result<Token> ExpectOrError(this Result<Token> token, Keyword keyword)
+        {
+            if (token.IsFailed) return Result.Fail(token.Errors);
+            if (!token.Expect(keyword)) return Result.Fail(token.CreateExpectedError(keyword));
+            return token;
+        }
+
         public static Result<Token> ExpectOrExit(this Result<Token> token, Keyword keyword)
         {
             if (token.Value.Type != TokenType.KEYWORD || (Keyword)token.Value.Value != keyword)
@@ -146,7 +167,7 @@ namespace JackCompiler.Extensions
                 || token.IsUnaryOperator();
         }
 
-        public static bool IsStatements(this Result<Token> token)
+        public static bool IsStatement(this Result<Token> token)
         {
             return token.Expect(Keyword.LET)
                 || token.Expect(Keyword.IF)

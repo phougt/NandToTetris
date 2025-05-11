@@ -15,7 +15,6 @@ namespace JackCompiler.Enums
         GT,
         LT,
         AND,
-        OR,
-        NOT
+        OR
     }
 }
