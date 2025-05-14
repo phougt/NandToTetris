@@ -19,7 +19,6 @@ namespace JackCompiler.Modules
         private readonly VMWriter _vmWriter;
         private readonly SymbolTable _classScopeTable;
         private readonly SymbolTable _subroutineScopeTable;
-        private readonly StringBuilder _output;
         private string _currentClassname = string.Empty;
         private Result<Token> _currentResult;
         private int _generalPurposeCounter = 0;
@@ -30,7 +29,6 @@ namespace JackCompiler.Modules
             _vmWriter = writer;
             _classScopeTable = new SymbolTable();
             _subroutineScopeTable = new SymbolTable();
-            _output = new StringBuilder();
         }
 
         public bool TryWriteOutputToFile()
