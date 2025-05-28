@@ -937,6 +937,7 @@ namespace JackCompiler.Modules
         public void Dispose()
         {
             _tokenizer.Dispose();
+            _vmWriter.Dispose();
         }
     }
 }
